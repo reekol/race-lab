@@ -1,0 +1,4690 @@
+<!-- RaceLab v7
+     Standalone vanilla-JS architecture.
+     Functional reference: RaceLab_clean_v6_state_extractors.html
+     All request, verification, extractor, templating, sweep, replay,
+     persistence and visualization functionality is kept in one self-contained file.
+-->
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>RaceLab v7 — HTTP Race Condition Tester</title>
+	<style>
+	:root {
+		color-scheme: dark;
+		--bg: #070a0f;
+		--surface: #0d131b;
+		--surface-2: #111923;
+		--surface-3: #151f2b;
+		--line: #273444;
+		--line-soft: #1c2632;
+		--text: #e9eef5;
+		--muted: #8c99a8;
+		--blue: #58a6ff;
+		--blue-2: #2f81d6;
+		--green: #3fb950;
+		--red: #f85149;
+		--yellow: #d29922;
+		--purple: #d889ff;
+		--cyan: #55d6d2;
+		--shadow: 0 12px 34px rgba(0, 0, 0, .28);
+	}
+
+	* {
+		box-sizing: border-box
+	}
+
+	html {
+		background: var(--bg);
+		scroll-behavior: smooth
+	}
+
+	body {
+		margin: 0;
+		min-height: 100vh;
+		background: radial-gradient(circle at 20% -10%, rgba(88, 166, 255, .07), transparent 28%), radial-gradient(circle at 85% 0%, rgba(216, 137, 255, .045), transparent 24%), var(--bg);
+		color: var(--text);
+		font: 13px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif
+	}
+
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit
+	}
+
+	button {
+		cursor: pointer;
+		border: 1px solid var(--line);
+		border-radius: 7px;
+		padding: 8px 11px;
+		background: linear-gradient(#1a2430, #151e29);
+		color: var(--text);
+		font-weight: 700;
+		transition: .15s ease;
+		box-shadow: 0 1px 0 rgba(255, 255, 255, .025) inset
+	}
+
+	button:hover {
+		background: linear-gradient(#233141, #1a2632);
+		border-color: #3a4b5f;
+		transform: translateY(-1px)
+	}
+
+	button:active {
+		transform: translateY(0)
+	}
+
+	button.primary {
+		background: linear-gradient(#1d78bc, #145b92);
+		border-color: #3288c9;
+		box-shadow: 0 0 0 1px rgba(88, 166, 255, .12), 0 6px 18px rgba(23, 105, 170, .2)
+	}
+
+	button.danger {
+		background: linear-gradient(#7d2929, #632020);
+		border-color: #a33a3a
+	}
+
+	button:disabled {
+		opacity: .4;
+		cursor: not-allowed;
+		transform: none
+	}
+
+	header {
+		height: 64px;
+		padding: 0 22px;
+		border-bottom: 1px solid var(--line);
+		background: rgba(7, 10, 15, .92);
+		backdrop-filter: blur(16px);
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		position: sticky;
+		top: 0;
+		z-index: 50;
+		box-shadow: 0 8px 28px rgba(0, 0, 0, .18)
+	}
+
+	.logo {
+		font-size: 19px;
+		font-weight: 850;
+		letter-spacing: -.02em
+	}
+
+	.logo:after {
+		content: "";
+		display: inline-block;
+		width: 7px;
+		height: 7px;
+		margin-left: 6px;
+		border-radius: 50%;
+		background: var(--blue);
+		box-shadow: 0 0 12px rgba(88, 166, 255, .8)
+	}
+
+	.badge {
+		font-size: 9px;
+		letter-spacing: .08em;
+		text-transform: uppercase;
+		border: 1px solid #315b87;
+		border-radius: 999px;
+		padding: 4px 8px;
+		color: #a8d2ff;
+		background: #102036
+	}
+
+	.top-actions {
+		margin-left: auto;
+		display: flex;
+		gap: 7px;
+		align-items: center;
+		flex-wrap: wrap
+	}
+
+	.stored-experiments {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding-left: 7px;
+		border-left: 1px solid var(--line)
+	}
+
+	.stored-experiments select {
+		min-width: 190px;
+		max-width: 260px;
+	}
+
+	main {
+		width: min(1720px, 100%);
+		margin: auto;
+		padding: 18px 20px 40px
+	}
+
+	.tabs {
+		display: flex;
+		gap: 5px;
+		margin: 0 0 16px;
+		padding: 4px;
+		background: rgba(13, 19, 27, .72);
+		border: 1px solid var(--line-soft);
+		border-radius: 10px;
+		width: max-content;
+		max-width: 100%;
+		overflow: auto
+	}
+
+	.tab {
+		background: transparent;
+		border-color: transparent;
+		color: var(--muted);
+		padding: 8px 13px
+	}
+
+	.tab:hover {
+		background: #151e29
+	}
+
+	.tab.active {
+		background: #132238;
+		color: #e6f2ff;
+		border-color: #315b87;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, .18)
+	}
+
+	.payload-example-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 14px
+	}
+
+	.payload-example-card {
+		background: rgba(8, 13, 19, .55);
+		border: 1px solid var(--line);
+		border-radius: 10px;
+		padding: 13px
+	}
+
+	.payload-example {
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 9px;
+		margin-top: 9px;
+		background: rgba(255,255,255,.018)
+	}
+
+	.payload-example code {
+		display: block;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 11px;
+		line-height: 1.45;
+		color: #c9d8e8
+	}
+
+	.payload-example-actions {
+		display: flex;
+		gap: 6px;
+		margin-top: 8px
+	}
+
+	@media (max-width: 1050px) {
+		.payload-example-grid { grid-template-columns: 1fr }
+	}
+
+	.layout {
+		display: grid;
+		grid-template-columns: 470px minmax(0, 1fr);
+		gap: 16px;
+		align-items: start
+	}
+
+	.stack>* {
+		margin-bottom: 14px
+	}
+
+	.card {
+		background: linear-gradient(180deg, rgba(17, 25, 35, .97), rgba(12, 18, 25, .97));
+		border: 1px solid var(--line);
+		border-radius: 11px;
+		padding: 15px;
+		margin-bottom: 14px;
+		box-shadow: var(--shadow);
+		position: relative;
+		overflow: hidden
+	}
+
+	.card:before {
+		content: "";
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .06), transparent);
+		pointer-events: none
+	}
+
+	.card h2 {
+		font-size: 11px;
+		margin: 0 0 12px;
+		text-transform: uppercase;
+		letter-spacing: .09em;
+		color: #cbd5df;
+		display: flex;
+		align-items: center;
+		gap: 8px
+	}
+
+	.card h2:before {
+		content: "";
+		width: 3px;
+		height: 13px;
+		border-radius: 3px;
+		background: #344454;
+		display: inline-block
+	}
+
+	.sub {
+		font-size: 10px;
+		color: var(--muted);
+		font-weight: 800;
+		margin: 13px 0 6px;
+		text-transform: uppercase;
+		letter-spacing: .07em
+	}
+
+	label {
+		display: block;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: .02em;
+		color: #9aa7b6;
+		margin: 9px 0 5px
+	}
+
+	input,
+	textarea,
+	select {
+		width: 100%;
+		background: #090f16;
+		color: var(--text);
+		border: 1px solid #263342;
+		border-radius: 7px;
+		padding: 9px;
+		outline: none;
+		font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+		transition: .15s
+	}
+
+	input:hover,
+	textarea:hover,
+	select:hover {
+		border-color: #344658
+	}
+
+	input:focus,
+	textarea:focus,
+	select:focus {
+		border-color: #397ab4;
+		box-shadow: 0 0 0 3px #397ab41d;
+		background: #0b121a
+	}
+
+	textarea {
+		min-height: 78px;
+		resize: vertical
+	}
+
+	.row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 9px
+	}
+
+	.row3 {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 9px
+	}
+
+	.help {
+		font-size: 10px;
+		color: #788696;
+		margin-top: 6px
+	}
+
+	.check {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 11px;
+		color: #8997a6;
+		margin-top: 9px
+	}
+
+	.check input {
+		width: auto;
+		accent-color: var(--blue)
+	}
+
+	.actions {
+		display: flex;
+		gap: 7px;
+		flex-wrap: wrap
+	}
+
+	.spacer {
+		flex: 1
+	}
+
+	.progress {
+		height: 6px;
+		background: #070b10;
+		border: 1px solid #141d27;
+		border-radius: 999px;
+		overflow: hidden;
+		margin-top: 10px
+	}
+
+	.progress i {
+		display: block;
+		height: 100%;
+		width: 0;
+		background: linear-gradient(90deg, #2f81d6, #58a6ff);
+		transition: width .15s;
+		box-shadow: 0 0 14px rgba(88, 166, 255, .4)
+	}
+
+	.verdict {
+		border: 1px solid var(--line);
+		background: linear-gradient(180deg, #101923, #0c131a);
+		border-radius: 11px;
+		padding: 15px;
+		margin-bottom: 14px;
+		box-shadow: var(--shadow)
+	}
+
+	.verdict.high {
+		border-color: #81302b;
+		box-shadow: 0 0 0 1px #81302b22, var(--shadow)
+	}
+
+	.verdict.medium {
+		border-color: #79551c
+	}
+
+	.verdict.low {
+		border-color: #276a36
+	}
+
+	.verdict-title {
+		font-size: 16px;
+		font-weight: 850
+	}
+
+	.vg {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 7px;
+		margin-top: 11px
+	}
+
+	.metric {
+		background: #0b121a;
+		border: 1px solid var(--line-soft);
+		padding: 9px;
+		border-radius: 7px
+	}
+
+	.metric span {
+		display: block;
+		font-size: 9px;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: .05em
+	}
+
+	.metric b {
+		font-size: 13px
+	}
+
+	.stats {
+		display: grid;
+		grid-template-columns: repeat(8, 1fr);
+		gap: 7px
+	}
+
+	.stat {
+		background: linear-gradient(180deg, #0e161f, #0a1118);
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 9px;
+		min-width: 0
+	}
+
+	.stat span {
+		display: block;
+		color: #7f8d9c;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: .04em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis
+	}
+
+	.stat b {
+		font-size: 15px;
+		display: block;
+		margin-top: 2px
+	}
+
+	.chart-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px
+	}
+
+	.chartbox {
+		height: 270px;
+		background: #090f15;
+		border: 1px solid var(--line-soft);
+		border-radius: 9px;
+		padding: 9px;
+		position: relative;
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025)
+	}
+
+	.chartbox canvas {
+		width: 100%;
+		height: 100%;
+		display: block
+	}
+
+	.empty {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		color: #667585;
+		font-size: 11px;
+		pointer-events: none
+	}
+
+	.table-wrap {
+		max-height: 410px;
+		overflow: auto;
+		border: 1px solid var(--line);
+		border-radius: 9px;
+		background: #080e14
+	}
+
+	table {
+		width: 100%;
+		border-collapse: separate;
+		border-spacing: 0;
+		font-size: 11px
+	}
+
+	th,
+	td {
+		padding: 8px 9px;
+		border-bottom: 1px solid #1d2834;
+		white-space: nowrap;
+		text-align: left
+	}
+
+	th {
+		position: sticky;
+		top: 0;
+		background: #111a24;
+		color: #7f8d9c;
+		z-index: 2;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: .07em
+	}
+
+	tbody tr {
+		transition: .1s
+	}
+
+	tbody tr:hover {
+		background: #131e29;
+		cursor: pointer
+	}
+
+	tbody tr.highlight {
+		background: #17304a;
+		box-shadow: inset 3px 0 0 var(--blue)
+	}
+
+	tbody tr.request-running {
+		background: rgba(210, 153, 34, .10);
+		box-shadow: inset 2px 0 0 rgba(210, 153, 34, .65);
+	}
+
+	tbody tr.request-running:hover {
+		background: rgba(210, 153, 34, .14);
+	}
+
+	/* Subsequent requests are rendered as children of their Race target. */
+	tbody tr.subsequent-child td:first-child {
+		border-left: 2px solid var(--blue);
+	}
+	tbody tr.subsequent-child td:nth-child(2) {
+		padding-left: 18px;
+		font-size: .92em;
+	}
+	tbody tr.subsequent-child td:nth-child(2)::before {
+		content: "↳ ";
+		opacity: .7;
+	}
+	.result-mode {
+		display: inline-block;
+		margin-left: 6px;
+		padding: 2px 5px;
+		border: 1px solid #2b3948;
+		border-radius: 3px;
+		color: #8fa8c0;
+		font-size: 8px;
+		font-weight: 700;
+		letter-spacing: .04em;
+		text-transform: uppercase;
+		vertical-align: 1px;
+	}
+	.result-mode {
+		display: inline-block;
+		margin-left: 6px;
+		padding: 2px 5px;
+		border: 1px solid #2b3948;
+		border-radius: 3px;
+		color: #8fa8c0;
+		font-size: 8px;
+		font-weight: 700;
+		letter-spacing: .04em;
+		text-transform: uppercase;
+		vertical-align: 1px;
+	}
+
+	/* Race rounds are explicit visual groups. The group row is generated from
+	   the stable round number, so asynchronous completion cannot affect it. */
+	tbody tr.race-round-group td {
+		padding: 7px 9px 6px;
+		background: #0b121a;
+		border-top: 1px solid #2b3948;
+		border-bottom: 1px solid #1d2834;
+		color: #8fa8c0;
+		font-size: 9px;
+		font-weight: 700;
+		letter-spacing: .09em;
+		text-transform: uppercase;
+	}
+	tbody tr.race-round-group td::before {
+		content: "";
+		display: inline-block;
+		width: 3px;
+		height: 11px;
+		margin-right: 7px;
+		vertical-align: -2px;
+		background: var(--blue);
+	}
+
+	.ok {
+		color: var(--green)
+	}
+
+	.bad {
+		color: var(--red)
+	}
+
+	.warn {
+		color: var(--yellow)
+	}
+
+	.two {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 13px
+	}
+
+	.timeline {
+		min-height: 190px;
+		max-height: 320px;
+		overflow: auto;
+		background: #090f15;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 9px
+	}
+
+	.trow {
+		height: 23px;
+		display: flex;
+		align-items: center;
+		font: 10px ui-monospace, monospace
+	}
+
+	.trow.subsequent {
+		height: 20px;
+		opacity: .92
+	}
+
+	.trow.subsequent .tid {
+		padding-left: 10px;
+		font-size: 9px
+	}
+
+	.tid {
+		width: 60px;
+		color: var(--muted)
+	}
+
+	.track {
+		position: relative;
+		flex: 1;
+		height: 14px;
+		background: #10161e;
+		border-radius: 4px
+	}
+
+	.barline {
+		position: absolute;
+		top: 4px;
+		height: 6px;
+		min-width: 2px;
+		border-radius: 4px;
+		background: var(--blue);
+		box-shadow: 0 0 8px rgba(88, 166, 255, .18)
+	}
+
+	.trow.clickable {
+		cursor: pointer;
+	}
+
+	.trow.clickable:hover {
+		background: rgba(88, 166, 255, .08);
+	}
+
+	.trow.timeline-selected {
+		background: rgba(88, 166, 255, .13);
+	}
+
+	.trow.timeline-selected .barline {
+		box-shadow: 0 0 0 1px rgba(88, 166, 255, .35), 0 0 10px rgba(88, 166, 255, .32);
+	}
+
+	.barline.flag {
+		background: var(--red)
+	}
+
+	.groups {
+		display: grid;
+		gap: 7px;
+		max-height: 320px;
+		overflow: auto
+	}
+
+	.group {
+		background: #0c141c;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 9px;
+		cursor: pointer;
+		transition: .15s
+	}
+
+	.group:hover {
+		background: #131e29;
+		border-color: #344658
+	}
+
+	.group.selected {
+		background: #172638;
+		border-color: var(--blue);
+		box-shadow: 0 0 0 1px #58a6ff33
+	}
+
+	.group b {
+		float: right
+	}
+
+	.mono {
+		font-family: ui-monospace, SFMono-Regular, Consolas, monospace
+	}
+
+	pre {
+		margin: 0;
+		background: #080e14;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 11px;
+		max-height: 300px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font: 11px ui-monospace, monospace
+	}
+
+	.auto-height {
+		max-height: none;
+		overflow: visible
+	}
+
+	.auto-height .json-box {
+		max-height: 520px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-word
+	}
+
+	.json-view {
+		color: #d7dee7
+	}
+
+	.json-key {
+		color: #79c0ff
+	}
+
+	.json-string {
+		color: #a5d6ff
+	}
+
+	.json-number {
+		color: #d2a8ff
+	}
+
+	.json-bool {
+		color: #7ee787
+	}
+
+	.json-null {
+		color: #8b949e
+	}
+
+	.json-punct {
+		color: #8b949e
+	}
+	/* Global variables */
+
+	.global-var-head {
+		display: flex;
+		align-items: center;
+		gap: 9px
+	}
+
+	.global-var-head .help {
+		margin: 0
+	}
+
+	.global-vars {
+		display: grid;
+		gap: 8px
+	}
+
+	.global-var {
+		display: grid;
+		grid-template-columns: minmax(130px, .7fr) minmax(180px, 1.3fr) auto auto;
+		gap: 8px;
+		align-items: end;
+		padding: 10px;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		background: #0a1118
+	}
+
+	.global-var:hover {
+		border-color: #344658
+	}
+
+	.global-var label {
+		margin-top: 0
+	}
+
+	.global-var .globalFind {
+		padding: 7px 10px;
+		border-color: #315b87;
+		background: #102036;
+		color: #a8d2ff
+	}
+
+	.global-var .removeGlobal {
+		padding: 7px 10px
+	}
+
+	.global-find-result {
+		grid-column: 1/-1;
+		padding: 8px;
+		border-radius: 7px;
+		background: #071018;
+		border-left: 2px solid var(--blue);
+		font: 10px ui-monospace, monospace;
+		color: #9caabb
+	}
+
+	.global-find-result.hidden {
+		display: none!important
+	}
+	/* Conditions, assertions, snapshots */
+
+	.assert {
+		display: grid;
+		grid-template-columns: 1.3fr .8fr 1fr auto;
+		gap: 7px;
+		margin-top: 7px;
+		padding: 7px;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		background: #0a1118
+	}
+
+	.assert button {
+		padding: 5px 8px
+	}
+
+	.conditionBlock {
+		margin: 12px 0 2px;
+		padding: 10px;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		background: #0a1118
+	}
+
+	.conditionTitle {
+		display: flex;
+		align-items: center;
+		gap: 8px
+	}
+
+	.conditionTitle label {
+		margin: 0;
+		text-transform: uppercase;
+		letter-spacing: .06em
+	}
+
+	.conditionTitle button {
+		margin-left: auto;
+		padding: 5px 9px
+	}
+
+	.conditionRow {
+		display: grid;
+		grid-template-columns: minmax(0, 1.4fr) minmax(120px, .8fr) minmax(0, 1fr) auto;
+		gap: 7px;
+		margin-top: 7px
+	}
+
+	.conditionRow button {
+		padding: 4px 8px
+	}
+
+	.snapshots {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 10px
+	}
+
+	.state-verification-groups {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 14px;
+		align-items: start
+	}
+
+	.state-verification-groups .state-verification-divider {
+		display: none
+	}
+
+	.snapshot {
+		background: #0a1118;
+		border: 1px solid var(--line-soft);
+		border-radius: 8px;
+		padding: 10px
+	}
+
+	.snapshotHeader {
+		display: flex!important;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin-bottom: 10px
+	}
+
+	.snapshotHeaderActions {
+		display: flex;
+		align-items: center;
+		gap: 5px
+	}
+
+	.snapshotHeaderActions button {
+		margin: 0
+	}
+
+	.snapshotToggle {
+		min-width: 28px;
+		padding: 3px 7px!important;
+		font-weight: 800
+	}
+
+	.snapshotPlay,
+	.snapshotClone {
+		min-width: 30px;
+		padding: 3px 8px!important
+	}
+
+	.snapshotPlay.playing {
+		opacity: .65;
+		cursor: wait
+	}
+
+	.snapshotCollapsed .snapshotHeader {
+		margin-bottom: 0
+	}
+
+	.snapshotBody[hidden] {
+		display: none
+	}
+
+	.state-verification-group {
+		margin: 16px 0 20px;
+		padding: 15px;
+		border: 1px solid #283544;
+		border-radius: 10px;
+		background: linear-gradient(180deg, rgba(255, 255, 255, .018), rgba(255, 255, 255, .008))
+	}
+
+	.state-verification-group.before {
+		box-shadow: inset 3px 0 0 #4ea1ff
+	}
+
+	.state-verification-group.after {
+		box-shadow: inset 3px 0 0 #d889ff
+	}
+
+	.state-verification-group.before .snapshot {
+		border-bottom: 2px solid #4ea1ff
+	}
+
+	.state-verification-group.after .snapshot {
+		border-bottom: 2px solid #d889ff
+	}
+
+	.state-group-heading {
+		display: flex;
+		align-items: baseline;
+		gap: 9px;
+		margin-bottom: 10px
+	}
+
+	.state-group-title {
+		font-size: 12px;
+		font-weight: 850;
+		text-transform: uppercase;
+		letter-spacing: .08em
+	}
+
+	.state-verification-group.before .state-group-title {
+		color: #4ea1ff
+	}
+
+	.state-verification-group.after .state-group-title {
+		color: #d889ff
+	}
+
+	.state-group-subtitle {
+		font-size: 10px;
+		color: var(--muted)
+	}
+
+	.state-verification-divider {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin: 7px 0;
+		color: #657383;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: .14em
+	}
+
+	.state-verification-divider:before,
+	.state-verification-divider:after {
+		content: "";
+		height: 1px;
+		background: var(--line-soft);
+		flex: 1
+	}
+
+	.stateVerificationHeadingRow {
+		display: flex;
+		align-items: center;
+		width: 100%;
+		gap: 12px
+	}
+
+	.stateVerificationHeadingRow .sectionFullscreen {
+		margin-left: auto
+	}
+	/* Request/response accordions */
+
+	.results-row.selected {
+		background: #17304a;
+		box-shadow: inset 3px 0 0 var(--blue)
+	}
+
+	.results-row .toggle-cell {
+		width: 24px;
+		text-align: center;
+		padding-left: 5px;
+		padding-right: 3px;
+		color: var(--muted);
+		font-size: 10px
+	}
+
+	.results-accordion td {
+		padding: 0;
+		border-bottom: 1px solid var(--line)
+	}
+
+	.results-accordion .accordion-panel {
+		padding: 11px 13px 13px 35px;
+		background: #080e14;
+		border-left: 3px solid var(--blue)
+	}
+
+	.results-accordion .accordion-section {
+		margin-top: 9px
+	}
+
+	.results-accordion .accordion-section:first-child {
+		margin-top: 0
+	}
+
+	.results-accordion .accordion-title {
+		font-size: 9px;
+		font-weight: 850;
+		letter-spacing: .08em;
+		color: #8290a0;
+		margin-bottom: 5px;
+		text-transform: uppercase
+	}
+
+	.results-accordion pre {
+		max-height: 360px;
+		margin: 0
+	}
+
+	.results-card-fullscreen {
+		position: fixed!important;
+		inset: 12px;
+		z-index: 1000;
+		margin: 0!important;
+		width: auto!important;
+		height: auto!important;
+		display: flex;
+		flex-direction: column;
+		background: #0d131b;
+		box-shadow: 0 18px 60px rgba(0, 0, 0, .65)
+	}
+
+	.results-card-fullscreen .table-wrap {
+		flex: 1;
+		min-height: 0;
+		height: 0;
+		max-height: none;
+		overflow: auto
+	}
+
+	.results-card-fullscreen .results-fullscreen-label {
+		display: inline-block
+	}
+
+	.results-fullscreen-label {
+		display: none;
+		font-size: 9px;
+		opacity: .6;
+		letter-spacing: .08em;
+		text-transform: uppercase
+	}
+
+	.results-fullscreen-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 999;
+		background: rgba(0, 0, 0, .58);
+		backdrop-filter: blur(3px)
+	}
+
+	.sectionFullscreen {
+		margin-left: auto;
+		white-space: nowrap
+	}
+
+	.stateVerificationHeadingRow .sectionFullscreen {
+		background: #102036;
+		border-color: #315b87;
+		color: #a8d2ff
+	}
+	/* Misc */
+
+	.hidden {
+		display: none!important
+	}
+
+	.notice {
+		padding: 11px;
+		border: 1px dashed #2b3948;
+		border-radius: 8px;
+		color: #758394;
+		font-size: 11px;
+		background: #091018
+	}
+
+	.heatgrid {
+		border-collapse: separate;
+		border-spacing: 3px;
+		font-size: 11px
+	}
+
+	.heatgrid th,
+	.heatgrid td {
+		border: 0;
+		padding: 7px;
+		text-align: center;
+		min-width: 54px
+	}
+
+	.heatcell {
+		border-radius: 5px;
+		color: #e8edf2;
+		font-weight: 700
+	}
+
+	.sweep-good {
+		background: #17231a
+	}
+
+	.sweep-mid {
+		background: #5b4318
+	}
+
+	.sweep-bad {
+		background: #71251f
+	}
+
+	@media(max-width:1200px) {
+		.layout {
+			grid-template-columns: 390px minmax(0, 1fr)
+		}
+		.stats {
+			grid-template-columns: repeat(4, 1fr)
+		}
+	}
+
+	@media(max-width:980px) {
+		.layout {
+			grid-template-columns: 1fr
+		}
+		.stack {
+			display: block
+		}
+		.chart-grid,
+		.two,
+		.snapshots,
+		.state-verification-groups {
+			grid-template-columns: 1fr
+		}
+		.top-actions {
+			display: none
+		}
+	}
+
+	@media(max-width:650px) {
+		main {
+			padding: 12px
+		}
+		.row,
+		.row3 {
+			grid-template-columns: 1fr
+		}
+		.vg {
+			grid-template-columns: 1fr 1fr
+		}
+		.stats {
+			grid-template-columns: repeat(2, 1fr)
+		}
+		.global-var {
+			grid-template-columns: 1fr 1fr
+		}
+		.global-var .global-find-result {
+			grid-column: 1/-1
+		}
+	}
+
+	.workspace-kicker {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		color: #6f7e8e;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: .09em;
+		margin: 0 0 9px;
+		padding-left: 2px
+	}
+
+	.kicker-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #3fb950;
+		box-shadow: 0 0 9px rgba(63, 185, 80, .7)
+	}
+
+	.kicker-note {
+		margin-left: auto;
+		color: #556473
+	}
+
+	.stateVerificationFsActive {
+		overflow: hidden!important
+	}
+
+	.stateVerificationFullscreen {
+		position: fixed!important;
+		inset: 0!important;
+		z-index: 99999!important;
+		width: auto!important;
+		max-width: none!important;
+		height: auto!important;
+		max-height: none!important;
+		margin: 0!important;
+		overflow: auto!important;
+		box-sizing: border-box!important;
+		border-radius: 0!important;
+		background: var(--panel, #0d131b)!important;
+		padding: 18px 22px 28px!important;
+	}
+
+	.stateVerificationFullscreen .stateVerificationHeadingRow {
+		position: sticky;
+		top: -18px;
+		z-index: 20;
+		padding: 4px 0 12px;
+		background: var(--panel, #0d131b);
+	}
+
+	.results-row.find-highlight {
+		background: #5b5120!important;
+		box-shadow: inset 4px 0 0 #ffe36e, 0 0 0 1px #ffe36e88
+	}
+
+	.results-row.find-highlight td {
+		color: #fff3b0!important
+	}
+
+	.global-find-result .find-hit {
+		display: block;
+		width: 100%;
+		margin-top: 5px;
+		padding: 6px 8px;
+		border: 1px solid #3a424c;
+		border-radius: 6px;
+		background: #0b131b;
+		color: #cbd5df;
+		text-align: left;
+		cursor: pointer;
+		font: 10px ui-monospace, monospace
+	}
+
+	.global-find-result .find-hit:hover {
+		background: #151d26;
+		border-color: #ffe36e;
+		color: #fff3b0
+	}
+
+	.global-find-result .find-hit:focus-visible {
+		outline: 2px solid #ffe36e;
+		outline-offset: 1px
+	}
+
+	.last-live-card {
+		margin-bottom: 16px
+	}
+
+	.last-live-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+		gap: 8px;
+		margin-top: 10px
+	}
+
+	.last-live-var {
+		min-width: 0;
+		padding: 9px 11px;
+		border: 1px solid var(--line-soft);
+		border-radius: 7px;
+		background: rgba(10, 15, 21, .72)
+	}
+
+	.last-live-var .name {
+		font: 700 10px ui-monospace, monospace;
+		color: #8fa8c0;
+		margin-bottom: 5px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis
+	}
+
+	.last-live-var .value {
+		font: 600 13px ui-monospace, monospace;
+		color: #e6edf3;
+		white-space: pre-wrap;
+		word-break: break-word;
+		max-height: 70px;
+		overflow: auto
+	}
+	</style>
+</head>
+
+<body>
+	<header>
+		<div class="logo">RaceLab</div><span class="badge">AUTHORIZED TESTING</span>
+		<div class="top-actions">
+			<button id="save">Save experiment</button>
+			<button id="load">Load experiment</button>
+			<button id="storeCurrent" class="primary" title="Store the current experiment in this browser">Store Current Experiment</button>
+			<div class="stored-experiments">
+				<select id="storedExperiments" title="Stored experiments">
+					<option value="">No stored experiments</option>
+				</select>
+				<button id="useStored" type="button" title="Load the selected stored experiment">Use</button>
+				<button id="deleteStored" type="button" class="danger" title="Delete the selected stored experiment">Delete</button>
+			</div>
+			<button id="exportCollection" type="button" title="Export all stored experiments">Export collection</button>
+			<button id="importCollection" type="button" title="Import a stored experiment collection">Import collection</button>
+			<input id="file" type="file" accept=".json" hidden>
+			<input id="collectionFile" type="file" accept=".json" hidden>
+		</div>
+	</header>
+	<main>
+		<div class="workspace-kicker"><span class="kicker-dot"></span><span>HTTP race-condition testing workspace</span><span class="kicker-note">standalone · no external dependencies</span></div>
+		<section class="card last-live-card" id="lastLiveCard">
+			<div style="display:flex;align-items:center;gap:8px">
+				<h2 style="margin-bottom:0">Live {{last.*}} variables</h2>
+				<span class="spacer"></span><span id="lastLiveCount" class="help">0 variables</span>
+			</div>
+			<div id="lastLiveVariables" class="last-live-grid">
+				<div class="help">No {{last.*}} variables have been extracted yet.</div>
+			</div>
+		</section>
+		<nav class="tabs">
+			<button class="tab active" data-view="experiment">Experiment</button>
+			<button class="tab" data-view="sweeps">Sweeps</button>
+			<button class="tab" data-view="comparison">Run comparison</button>
+			<button class="tab" data-view="payloadExamples">Attach payload examples</button>
+		</nav>
+		<section id="payloadExamples" class="view hidden">
+			<section class="card">
+				<div style="display:flex;align-items:center;gap:8px">
+					<h2 style="margin-bottom:0">Attach payload examples</h2>
+					<span class="spacer"></span>
+					<span class="help">Authorized security testing examples</span>
+				</div>
+				<div class="help" style="margin-top:8px">Select an example to copy it or attach it directly to the Target request payload. These are small, non-destructive test probes; use them only against systems you are authorized to test.</div>
+				<div class="payload-example-grid" style="margin-top:14px">
+					<div class="payload-example-card">
+						<h3>SQL Injection</h3>
+						<div class="help">Non-destructive syntax, boolean, comment, encoding and type-confusion probes.</div>
+						<div class="payload-example"><code>' OR '1'='1' -- </code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="' OR '1'='1' -- ">Copy</button><button type="button" class="payloadAttach" data-payload="' OR '1'='1' -- ">Attach to Target</button></div></div>
+						<div class="payload-example"><code>' AND '1'='2' -- </code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="' AND '1'='2' -- ">Copy</button><button type="button" class="payloadAttach" data-payload="' AND '1'='2' -- ">Attach to Target</button></div></div>
+						<div class="payload-example"><code>') OR ('1'='1' -- </code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="') OR ('1'='1' -- ">Copy</button><button type="button" class="payloadAttach" data-payload="') OR ('1'='1' -- ">Attach to Target</button></div></div>
+						<div class="payload-example"><code>1 AND (SELECT CASE WHEN (1=1) THEN 1 ELSE 0 END)=1</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="1 AND (SELECT CASE WHEN (1=1) THEN 1 ELSE 0 END)=1">Copy</button><button type="button" class="payloadAttach" data-payload="1 AND (SELECT CASE WHEN (1=1) THEN 1 ELSE 0 END)=1">Attach to Target</button></div></div>
+						<div class="payload-example"><code>1' ORDER BY 1-- </code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="1' ORDER BY 1-- ">Copy</button><button type="button" class="payloadAttach" data-payload="1' ORDER BY 1-- ">Attach to Target</button></div></div>
+						<div class="payload-example"><code>1' UNION SELECT NULL-- </code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="1' UNION SELECT NULL-- ">Copy</button><button type="button" class="payloadAttach" data-payload="1' UNION SELECT NULL-- ">Attach to Target</button></div></div>
+						<div class="payload-example"><code>%27%20OR%20%271%27%3D%271%27%20--%20</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="%27%20OR%20%271%27%3D%271%27%20--%20">Copy</button><button type="button" class="payloadAttach" data-payload="%27%20OR%20%271%27%3D%271%27%20--%20">Attach to Target</button></div></div>
+						<div class="payload-example"><code>0 OR 1=1</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="0 OR 1=1">Copy</button><button type="button" class="payloadAttach" data-payload="0 OR 1=1">Attach to Target</button></div></div>
+					</div>
+					<div class="payload-example-card">
+						<h3>XSS injections</h3>
+						<div class="help">Context-breaking probes for HTML, attribute, SVG and JavaScript-string sinks. Use a canary when you only need detection.</div>
+						<div class="payload-example"><code>&lt;script&gt;alert(1)&lt;/script&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&lt;script&gt;alert(1)&lt;/script&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&lt;script&gt;alert(1)&lt;/script&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&lt;img src=x onerror=alert(1)&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&lt;img src=x onerror=alert(1)&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&lt;img src=x onerror=alert(1)&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&quot;&gt;&lt;img src=x onerror=alert(1)&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&quot;&gt;&lt;img src=x onerror=alert(1)&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&quot;&gt;&lt;img src=x onerror=alert(1)&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&lt;svg&gt;&lt;animate onbegin=alert(1) attributeName=x&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&lt;svg&gt;&lt;animate onbegin=alert(1) attributeName=x&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&lt;svg&gt;&lt;animate onbegin=alert(1) attributeName=x&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&lt;div onmouseover=alert(1)&gt;RLAB_XSS&lt;/div&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&lt;div onmouseover=alert(1)&gt;RLAB_XSS&lt;/div&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&lt;div onmouseover=alert(1)&gt;RLAB_XSS&lt;/div&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&lt;script&gt;window.name='RLAB_XSS'&lt;/script&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&lt;script&gt;window.name='RLAB_XSS'&lt;/script&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="&lt;script&gt;window.name='RLAB_XSS'&lt;/script&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>'\&quot;&gt;&lt;svg/onload=alert(1)&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="'\&quot;&gt;&lt;svg/onload=alert(1)&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="'\&quot;&gt;&lt;svg/onload=alert(1)&gt;">Attach to Target</button></div></div>
+						<div class="payload-example"><code>RLAB_XSS&lt;!-- --&gt;&lt;img src=x onerror=alert(1)&gt;</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="RLAB_XSS&lt;!-- --&gt;&lt;img src=x onerror=alert(1)&gt;">Copy</button><button type="button" class="payloadAttach" data-payload="RLAB_XSS&lt;!-- --&gt;&lt;img src=x onerror=alert(1)&gt;">Attach to Target</button></div></div>
+					</div>
+					<div class="payload-example-card">
+						<h3>Command injections</h3>
+						<div class="help">Cross-platform command-separator and substitution probes using the harmless RLAB_CANARY marker.</div>
+						<div class="payload-example"><code>; echo RLAB_CANARY</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="; echo RLAB_CANARY">Copy</button><button type="button" class="payloadAttach" data-payload="; echo RLAB_CANARY">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&amp;&amp; echo RLAB_CANARY</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&amp;&amp; echo RLAB_CANARY">Copy</button><button type="button" class="payloadAttach" data-payload="&amp;&amp; echo RLAB_CANARY">Attach to Target</button></div></div>
+						<div class="payload-example"><code>| echo RLAB_CANARY</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="| echo RLAB_CANARY">Copy</button><button type="button" class="payloadAttach" data-payload="| echo RLAB_CANARY">Attach to Target</button></div></div>
+						<div class="payload-example"><code>$(echo RLAB_CANARY)</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="$(echo RLAB_CANARY)">Copy</button><button type="button" class="payloadAttach" data-payload="$(echo RLAB_CANARY)">Attach to Target</button></div></div>
+						<div class="payload-example"><code>`echo RLAB_CANARY`</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="`echo RLAB_CANARY`">Copy</button><button type="button" class="payloadAttach" data-payload="`echo RLAB_CANARY`">Attach to Target</button></div></div>
+						<div class="payload-example"><code>
+RLAB_CANARY</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="
+RLAB_CANARY">Copy</button><button type="button" class="payloadAttach" data-payload="
+RLAB_CANARY">Attach to Target</button></div></div>
+						<div class="payload-example"><code>$(printf RLAB_CANARY)</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="$(printf RLAB_CANARY)">Copy</button><button type="button" class="payloadAttach" data-payload="$(printf RLAB_CANARY)">Attach to Target</button></div></div>
+						<div class="payload-example"><code>&amp; echo RLAB_CANARY &amp;&amp; echo RLAB_CANARY</code><div class="payload-example-actions"><button type="button" class="payloadCopy" data-payload="&amp; echo RLAB_CANARY &amp;&amp; echo RLAB_CANARY">Copy</button><button type="button" class="payloadAttach" data-payload="&amp; echo RLAB_CANARY &amp;&amp; echo RLAB_CANARY">Attach to Target</button></div></div>
+					</div>
+				</div>
+			</section>
+		</section>
+		<section id="experiment" class="view">
+			<div class="layout">
+				<div class="stack">
+					<section class="card target-request-card">
+						<div class="sub snapshotHeader"><span>Target request</span><span class="snapshotHeaderActions"><button type="button" id="sendSingle" class="snapshotPlay" title="Send this request now">▶</button><button type="button" id="targetToggle" class="snapshotToggle" title="Collapse request">▾</button></span></div>
+						<div id="targetRequestBody" class="snapshotBody">
+							<label>Test name</label>
+							<input id="testName" value="RaceLab experiment" placeholder="My race-condition test">
+							<div class="help">Used as the filename when saving the experiment.</div>
+							<label>URL</label>
+							<input id="url" value="https://example.com/api/action">
+							<div class="row">
+								<div>
+									<label>Method</label>
+									<select id="method">
+										<option>POST</option>
+										<option>PUT</option>
+										<option>PATCH</option>
+										<option>DELETE</option>
+										<option>GET</option>
+									</select>
+								</div>
+								<div>
+									<label>Credentials</label>
+									<select id="credentials">
+										<option>omit</option>
+										<option>same-origin</option>
+										<option>include</option>
+									</select>
+								</div>
+							</div>
+							<div class="conditionBlock">
+								<div class="conditionTitle">
+									<label>Conditions</label>
+									<button type="button" id="addTargetCondition">+ Add condition</button>
+								</div>
+								<div id="targetConditions"></div>
+								<div class="help">All conditions must pass before target requests execute. Multiple conditional definitions are supported. Value and Expected are resolved as template strings, including {{before1.value}}, {{after1.value}}, {{last.value}}, and {{global.name}}.</div>
+							</div>
+							<label>Headers</label>
+							<textarea id="headers">Content-Type: application/json</textarea>
+							<div class="help">Target headers support State Verification variables, e.g. Authorization: Bearer {{before1.token}}</div>
+							<label>Payload template</label>
+							<textarea id="body">{"requestId":"{{uuid}}","index":{{index}},"timestamp":{{timestamp}}}</textarea>
+							<div class="help">{{index}} · {{uuid}} · {{timestamp}} · {{random}} · {{before1.value}} · {{before2.value}} · {{last.value}}</div>
+							<div class="extractorSection">
+								<div class="conditionTitle">
+									<label>Value extraction</label>
+								</div>
+								<div class="extractors targetExtractors"></div>
+								<div class="actions" style="margin-top:7px">
+									<button type="button" id="addTargetExtractor">+ Add value extraction</button>
+								</div>
+							</div>
+							<div class="help">Values extracted from target responses are added to the persistent {{last.*}} namespace. Select JSON Path, Regex, XPath, or Defined independently for each variable.</div>
+							<div class="extractorSection targetSubsequentSection">
+								<div class="conditionTitle"><label>Subsequent requests</label><div style="display:flex;gap:7px;align-items:center"><label style="margin:0;font-size:10px">Mode</label><select id="targetSubsequentMode" style="width:auto;min-width:110px"><option value="sequential">Sequential</option><option value="concurrent">Concurrent</option></select><button type="button" id="addTargetSubsequent">+ Add subsequent request</button></div></div>
+								<div id="targetSubsequentRequests"></div>
+								<div class="help">Each target request is followed by these requests. Sequential mode waits for each request before starting the next; Concurrent mode starts all eligible subsequent requests for that target together. Extracted values are available through {{last.*}} to later requests in Sequential mode.</div>
+							</div>
+						</div>
+				</section>
+				<section class="card">
+					<div class="global-var-head">
+						<h2 style="margin-bottom:0">Global variables</h2><span class="help">Available in every request as {{name}} or {{global.name}}</span><span class="spacer"></span>
+						<button type="button" id="addGlobalVar">+ Add variable</button>
+					</div>
+					<div id="globalVars" class="global-vars" style="margin-top:10px"></div>
+					<div class="help">Global variables are shared by the target, baseline, race, Before, After, and replay requests.</div>
+				</section>
+				<section class="card">
+					<h2>Race strategy</h2>
+					<div class="row3">
+						<div>
+							<label>Requests / round</label>
+							<input id="count" type="number" min="1" max="500" value="20">
+						</div>
+						<div>
+							<label>Race rounds</label>
+							<input id="rounds" type="number" min="1" max="100" value="5">
+						</div>
+						<div>
+							<label>Concurrency</label>
+							<input id="concurrency" type="number" min="1" max="100" value="20">
+						</div>
+					</div>
+					<div class="row3">
+						<div>
+							<label>Launch spread (ms)</label>
+							<input id="spread" type="number" min="0" max="10000" value="0">
+						</div>
+						<div>
+							<label>Timeout (ms)</label>
+							<input id="timeout" type="number" min="100" value="15000">
+						</div>
+						<div>
+							<label>Round delay (ms)</label>
+							<input id="roundDelay" type="number" min="0" value="250">
+						</div>
+					</div>
+					<div class="row">
+						<div>
+							<label>Dispatch</label>
+							<select id="dispatch">
+								<option value="barrier">Synchronized barrier</option>
+								<option value="pool">Concurrent pool</option>
+								<option value="sequential">Sequential</option>
+							</select>
+						</div>
+						<div>
+							<label>Capture</label>
+							<select id="capture">
+								<option value="full">Full body</option>
+								<option value="hash">Hash only</option>
+								<option value="none">None</option>
+							</select>
+						</div>
+					</div>
+					<label class="check">
+						<input id="fresh" type="checkbox" checked> Generate unique request variables</label>
+					<div class="row">
+						<label class="check">
+							<input id="enableBaseline" type="checkbox" checked> Enable baseline requests</label>
+						<label class="check">
+							<input id="enableRace" type="checkbox" checked> Enable race requests</label>
+					</div>
+					<div class="conditionBlock">
+						<div class="conditionTitle">
+							<label>Race execution conditions</label>
+							<button type="button" id="addRaceCondition">+ Add condition</button>
+						</div>
+						<div id="raceConditions"></div>
+						<div class="help">All conditions must pass before each race round executes. Both Value and Expected can use template variables such as {{before1.value}}, {{after1.value}}, {{last.value}}, or {{global.name}}.</div>
+					</div>
+					<div class="conditionBlock">
+						<div class="conditionTitle">
+							<label class="check" style="margin:0"><input id="enableGlobalStopCondition" type="checkbox"> Global Stop Condition</label>
+							<button type="button" id="addGlobalStopCondition">+ Add condition</button>
+						</div>
+						<div id="globalStopConditions"></div>
+						<div class="help">When enabled, all conditions must be true after a completed request for the running test to stop. Value and Expected support {{before1.value}}, {{after1.value}}, {{last.value}}, and {{global.name}}.</div>
+					</div>
+				</section>
+				<section class="card">
+					<h2>Race oracle</h2>
+					<div class="row">
+						<div>
+							<label>Success status codes</label>
+							<input id="successCodes" value="200,201,202">
+						</div>
+						<div>
+							<label>Maximum successes / round</label>
+							<input id="maxSuccess" type="number" min="0" value="1">
+						</div>
+					</div>
+					<div class="row">
+						<div>
+							<label>Extract response field</label>
+							<input id="extractPath" placeholder="$.transactionId">
+						</div>
+						<div>
+							<label>Expected count delta</label>
+							<input id="countDelta" type="number" placeholder="optional">
+						</div>
+					</div>
+					<div id="assertions"></div>
+					<div class="actions" style="margin-top:7px">
+						<button id="addAssert">+ Assertion</button>
+					</div>
+					<div class="help">Assertions: equals, not equals, exists, ≥, ≤, contains. Expected (right side) supports {{before1.value}}, {{after1.value}}, {{last.value}}, and {{global.name}}.</div>
+				</section>
+				<div class="actions">
+					<button class="primary" id="run">▶ Run full experiment</button>
+					<button class="danger" id="stop" disabled>■ Stop</button><span class="spacer"></span>
+					<button id="clear">Clear results</button>
+				</div>
+				<div class="progress"><i id="progress"></i></div>
+				<div id="progressText" class="help" style="margin-top:6px;display:flex;justify-content:space-between;gap:10px"><span>0%</span><span>0 / 0 requests executed</span></div>
+				<div class="help">Browser fetch() is subject to CORS, cookie policy, CSRF defenses and network scheduling.</div>
+			</div>
+			<div>
+				<section id="verdict" class="verdict">
+					<div class="verdict-title">Ready</div>
+					<div class="help">Run an experiment to compare sequential baseline behavior with concurrent race behavior.</div>
+				</section>
+				<section class="card">
+					<div class="stats">
+						<div class="stat"><span>Baseline 2xx</span><b id="base">—</b></div>
+						<div class="stat"><span>Race 2xx</span><b id="race">—</b></div>
+						<div class="stat"><span>Anomalies</span><b id="anom">—</b></div>
+						<div class="stat"><span>Unique responses</span><b id="uniq">—</b></div>
+						<div class="stat"><span>Duplicate values</span><b id="dup">—</b></div>
+						<div class="stat"><span>Launch skew</span><b id="skew">—</b></div>
+						<div class="stat"><span>P95 latency</span><b id="p95">—</b></div>
+						<div class="stat"><span>Reproducibility</span><b id="repro">—</b></div>
+					</div>
+				</section>
+				<section class="card">
+					<h2>Latency</h2>
+					<div class="chart-grid">
+						<div class="chartbox">
+							<canvas id="dist"></canvas>
+							<div class="empty" id="distEmpty">No race data</div>
+						</div>
+						<div class="chartbox">
+							<canvas id="raceChart"></canvas>
+							<div class="empty" id="raceEmpty">No race data</div>
+						</div>
+					</div>
+				</section>
+				<section class="card" id="lastVariableProgressCard">
+					<h2>Last variable progress</h2>
+					<div class="help">Numeric {{last.*}} values plotted in the order they are extracted during the test.</div>
+					<div id="lastVariableCharts" class="chart-grid" style="margin-top:10px"></div>
+				</section>
+				<section class="card" id="requestResultsCard">
+					<div style="display:flex;align-items:center;gap:8px">
+						<h2 style="margin-bottom:0">Request results</h2><span class="results-fullscreen-label">Fullscreen</span><span class="spacer"></span>
+						<label style="margin:0;display:flex;align-items:center;gap:6px;white-space:nowrap">Stored requests
+							<input id="resultLimit" type="number" min="0" max="100000" step="1" value="0" title="Maximum number of request results retained. 0 = unlimited." style="width:76px">
+						</label>
+						<button id="saveResults">Save results</button>
+						<button id="loadResults">Load results</button>
+						<button id="collapseAllResults" title="Collapse all request accordions">Collapse all</button>
+						<button id="resultsFullscreen" title="Toggle fullscreen">⛶ Fullscreen</button>
+						<input id="resultsFile" type="file" accept=".json" hidden>
+					</div>
+					<div class="table-wrap" style="margin-top:10px">
+						<table>
+							<thead>
+								<tr>
+									<th aria-label="Toggle"></th>
+									<th>Phase</th>
+									<th>Round</th>
+									<th>#</th>
+									<th>Request ID</th>
+									<th>Status</th>
+									<th>Launch</th>
+									<th>Latency</th>
+									<th>Size</th>
+									<th>Signature</th>
+									<th>Flag</th>
+								</tr>
+							</thead>
+							<tbody id="rows"></tbody>
+						</table>
+					</div>
+				</section>
+				<div class="two">
+					<section class="card">
+						<h2>Race timeline</h2>
+						<div id="timeline" class="timeline">
+							<div class="notice">Run an experiment to populate the timeline.</div>
+						</div>
+					</section>
+					<section class="card">
+						<h2>Response groups</h2>
+						<div id="groups" class="groups">
+							<div class="notice">Run an experiment to group response signatures.</div>
+						</div>
+					</section>
+				</div>
+				<div class="two">
+					<section class="card">
+						<h2>Verification snapshots</h2><pre id="snapshotOut" class="auto-height">No snapshots.</pre></section>
+					<section class="card">
+						<div style="display:flex;align-items:center;gap:8px">
+							<h2 style="margin-bottom:0">Selected response</h2><span class="spacer"></span>
+							<button id="replayDetail" disabled>↻ Replay</button>
+							<button id="copyDetail">Copy</button>
+						</div><pre id="detail" class="auto-height" style="margin-top:10px">Click a result row.</pre></section>
+				</div>
+				<section class="card stateVerificationCard">
+					<div class="stateVerificationHeadingRow">
+						<h2>State verification</h2>
+						<button type="button" id="stateVerificationFullscreen" class="sectionFullscreen" title="Fullscreen">⛶ Fullscreen</button>
+					</div>
+					<div class="state-verification-groups">
+						<div class="state-verification-group before">
+							<div class="state-group-heading">
+								<div class="state-group-title">Before state</div>
+								<div class="state-group-subtitle">Captured before the race begins</div>
+							</div>
+							<div id="beforeSnapshots"></div>
+							<div class="actions" style="margin-top:8px">
+								<button id="addBeforeSnapshot">+ Add before snapshot</button>
+							</div>
+						</div>
+						<div class="state-verification-divider"><span>race execution</span></div>
+						<div class="state-verification-group after">
+							<div class="state-group-heading">
+								<div class="state-group-title">After state</div>
+								<div class="state-group-subtitle">Captured after the race completes</div>
+							</div>
+							<div id="afterSnapshots"></div>
+							<div class="actions" style="margin-top:8px">
+								<button type="button" id="addAfterSnapshot">+ Add after snapshot</button>
+							</div>
+						</div>
+					</div>
+					<label>Verification headers</label>
+					<textarea id="verifyHeaders" placeholder="Authorization: Bearer ...&#10;Content-Type: application/json"></textarea>
+				</section>
+			</div>
+			</div>
+		</section>
+		<section id="sweeps" class="view hidden">
+			<section class="card">
+				<h2>Sweep configuration</h2>
+				<div class="row3">
+					<div>
+						<label>Preset</label>
+						<select id="sweepPreset">
+							<option value="custom">Custom</option>
+							<option value="quick">Quick</option>
+							<option value="balanced">Balanced</option>
+							<option value="aggressive">Aggressive</option>
+							<option value="timing">Timing sensitivity</option>
+							<option value="threshold">Concurrency threshold</option>
+							<option value="regression">Regression test</option>
+						</select>
+					</div>
+					<div>
+						<label>Rounds / configuration</label>
+						<input id="sweepRounds" type="number" min="1" max="100" value="5">
+					</div>
+					<div>
+						<label>Confidence threshold (%)</label>
+						<input id="sweepConfidence" type="number" min="1" max="100" value="80">
+					</div>
+				</div>
+				<div class="row">
+					<div>
+						<label class="check">
+							<input id="sweepConcurrencyOn" type="checkbox" checked> Sweep concurrency</label>
+						<input id="sweepConcurrencyValues" value="1,2,5,10,20,50">
+					</div>
+					<div>
+						<label class="check">
+							<input id="sweepSpreadOn" type="checkbox" checked> Sweep launch spread (ms)</label>
+						<input id="sweepSpreadValues" value="0,1,5,10,25">
+					</div>
+				</div>
+				<div class="row3">
+					<div>
+						<label class="check">
+							<input id="sweepDelayOn" type="checkbox"> Sweep round delay</label>
+						<input id="sweepDelayValues" value="0,100,250,500">
+					</div>
+					<div>
+						<label class="check">
+							<input id="sweepCountOn" type="checkbox"> Sweep requests / round</label>
+						<input id="sweepCountValues" value="5,10,20,50">
+					</div>
+					<div>
+						<label>Baseline</label>
+						<select id="sweepBaseline">
+							<option>Use existing / skip</option>
+							<option>Run per configuration</option>
+							<option>Skip</option>
+						</select>
+					</div>
+				</div>
+				<label class="check">
+					<input id="adaptiveSweep" type="checkbox" checked> Adaptive refinement</label>
+				<label class="check">
+					<input id="stopAt100" type="checkbox"> Stop configuration after 100% anomaly rate</label>
+				<div class="actions" style="margin-top:10px">
+					<button class="primary" id="sweepRun">▶ Run sweep</button>
+					<button id="sweepStop" disabled>■ Stop</button>
+					<button id="sweepClear">Clear</button>
+				</div>
+				<div class="progress"><i id="sweepProgress"></i></div>
+			</section>
+			<section class="card">
+				<h2>Sweep heatmap</h2>
+				<div id="sweepHeatmap">
+					<div class="notice">Run a two-parameter sweep to populate the heatmap.</div>
+				</div>
+			</section>
+			<section class="card">
+				<h2>Sweep graphs</h2>
+				<div class="chart-grid">
+					<div class="chartbox">
+						<canvas id="sweepRateChart"></canvas>
+						<div class="empty" id="sweepRateEmpty">No sweep data</div>
+					</div>
+					<div class="chartbox">
+						<canvas id="sweepLatencyChart"></canvas>
+						<div class="empty" id="sweepLatencyEmpty">No sweep data</div>
+					</div>
+				</div>
+			</section>
+			<section class="card">
+				<h2>Sweep results</h2>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>Concurrency</th>
+								<th>Spread</th>
+								<th>Delay</th>
+								<th>Requests</th>
+								<th>Rounds</th>
+								<th>Anomalous</th>
+								<th>Rate</th>
+								<th>P50</th>
+								<th>P95</th>
+								<th>Max</th>
+								<th>Verdict</th>
+							</tr>
+						</thead>
+						<tbody id="sweepRows"></tbody>
+					</table>
+				</div>
+			</section>
+			<section class="card">
+				<h2>Threshold analysis</h2><pre id="sweepSummary">No sweep analysis.</pre></section>
+		</section>
+		<section id="comparison" class="view hidden">
+			<section class="card">
+				<h2>Run comparison</h2>
+				<div class="row">
+					<div>
+						<label>Run A results file</label>
+						<div class="actions">
+							<button type="button" id="chooseRunA">Choose Run A JSON</button>
+							<input id="runAFile" type="file" accept=".json,application/json" hidden>
+						</div>
+						<div id="runAName" class="help">No file selected.</div>
+						<textarea id="runA" placeholder="Or paste RaceLab results JSON"></textarea>
+					</div>
+					<div>
+						<label>Run B results file</label>
+						<div class="actions">
+							<button type="button" id="chooseRunB">Choose Run B JSON</button>
+							<input id="runBFile" type="file" accept=".json,application/json" hidden>
+						</div>
+						<div id="runBName" class="help">No file selected.</div>
+						<textarea id="runB" placeholder="Or paste RaceLab results JSON"></textarea>
+					</div>
+				</div>
+				<div class="actions" style="margin-top:10px">
+					<button class="primary" id="compare">Compare runs</button>
+				</div>
+			</section>
+			<section class="card">
+				<h2>Comparison</h2><pre id="comparisonOut">No comparison.</pre></section>
+		</section>
+	</main>
+	<script>
+	/* ============================================================
+	   RACELAB v7 — APPLICATION LOGIC
+	   ============================================================
+	   Standalone browser application; no external dependencies.
+
+	   Main pipeline:
+	     Configuration → Before → Target/Race → Analysis → After → Results
+
+	   Verification variables:
+	     {{before1.name}}   {{before2.name}}
+	     {{after1.name}}    {{after2.name}}
+
+	   Built-in request variables:
+	     {{index}} {{uuid}} {{timestamp}} {{random}} {{requestId}}
+	   ============================================================ */
+	(() => {
+		"use strict";
+		// ============================================================
+		// 1. APPLICATION STATE & DOM HELPERS
+		// ============================================================
+		const $ = id => document.getElementById(id),
+			S = {
+				running: false,
+				results: [],
+				before: null,
+				after: null,
+				analysis: null,
+				aborters: [],
+				selected: null,
+				openAccordions: new Set(),
+				globalVars: [],
+				requestProgress: {active:false, executed:0, total:0},
+			};
+		const V = {
+			before: {},
+			after: null,
+			last: null,
+			lastHistory: []
+		};
+
+		const STORED_EXPERIMENTS_KEY = "RaceLab.storedExperiments.v1";
+		const RESULT_LIMIT_KEY = "RaceLab.resultLimit.v1";
+		function getResultLimit() {
+			const el = $("resultLimit");
+			let raw = el ? el.value : "0";
+			if(!el) { try { raw = localStorage.getItem(RESULT_LIMIT_KEY) || "0"; } catch {} }
+			const n = Number(raw);
+			return Number.isFinite(n) && n > 0 ? Math.floor(clamp(n, 1, 100000)) : 0
+		}
+		function pruneLastHistory() {
+			const limit = getResultLimit();
+			if(!limit) return;
+			const retained = new Set((S.results || []).map(r => r.requestId || r.request?.id || r.key).filter(Boolean));
+			V.lastHistory = (V.lastHistory || []).filter(e => !e.requestId || retained.has(e.requestId));
+		}
+		function trimStoredResults() {
+			const limit = getResultLimit();
+			if(!limit || S.results.length <= limit) return false;
+			S.results = S.results.slice(-limit);
+			if(S.selected && !S.results.includes(S.selected)) { S.selected = null; $("replayDetail").disabled = true; }
+			pruneLastHistory();
+			return true
+		}
+		function storeResult(result) {
+			S.results.push(result);
+			trimStoredResults();
+		}
+		function initResultLimit() {
+			const el = $("resultLimit");
+			if(!el) return;
+			try { const saved = Number(localStorage.getItem(RESULT_LIMIT_KEY)); if(Number.isFinite(saved) && saved >= 0) el.value = Math.min(100000, Math.floor(saved)); } catch {}
+			const apply = () => { const n = Number(el.value); if(!Number.isFinite(n) || n < 0) return; el.value = Math.min(100000, Math.floor(n)); try { localStorage.setItem(RESULT_LIMIT_KEY, String(Math.floor(n))); } catch {} trimStoredResults(); render(); };
+			el.addEventListener("change", apply);
+		}
+
+		function readStoredExperiments() {
+			try {
+				const raw = localStorage.getItem(STORED_EXPERIMENTS_KEY);
+				const list = raw ? JSON.parse(raw) : [];
+				return Array.isArray(list) ? list.filter(x => x && typeof x === "object" && x.experiment && x.experiment.config) : []
+			} catch(e) {
+				console.warn("RaceLab stored experiments could not be read:", e);
+				return []
+			}
+		}
+		function writeStoredExperiments(list) {
+			try {
+				localStorage.setItem(STORED_EXPERIMENTS_KEY, JSON.stringify(list));
+			} catch(e) {
+				throw new Error("Could not store experiments in browser local storage. The storage may be unavailable or full.");
+			}
+			renderStoredExperiments()
+		}
+		function storedExperimentName(value) {
+			return String(value || "RaceLab experiment").trim().replace(/\s+/g, " ") || "RaceLab experiment"
+		}
+		function renderStoredExperiments(selectId = "") {
+			const select = $("storedExperiments");
+			if(!select) return;
+			const list = readStoredExperiments();
+			select.innerHTML = "";
+			if(!list.length) {
+				select.innerHTML = '<option value="">No stored experiments</option>';
+				$("useStored").disabled = true;
+				$("deleteStored").disabled = true;
+				return
+			}
+			for(const item of list) {
+				const o = document.createElement("option");
+				o.value = item.id;
+				o.textContent = item.name + (item.storedAt ? " · " + new Date(item.storedAt).toLocaleString() : "");
+				select.appendChild(o)
+			}
+			if(selectId && list.some(x => x.id === selectId)) select.value = selectId;
+			$("useStored").disabled = !select.value;
+			$("deleteStored").disabled = !select.value
+		}
+		function selectedStoredExperiment() {
+			const id = $("storedExperiments")?.value;
+			return readStoredExperiments().find(x => x.id === id) || null
+		}
+
+		function valueString(v) {
+			return v === undefined || v === null ? "" : typeof v === "string" ? v : JSON.stringify(v)
+		}
+		// ============================================================
+		// 2. VERIFICATION VARIABLE RESOLUTION
+		// ============================================================
+		function applyVerificationVars(text) {
+			let out = String(text || "");
+			out = out.replace(/\{\{last\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, name) => valueString(V.last ?.[name]));
+			out = out.replace(/\{\{before(\d+)\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, n, name) => valueString(V.before[`before${n}`] ?.[name]));
+			out = out.replace(/\{\{after(\d+)\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, n, name) => valueString(V.after ?.[`after${n}`] ?.[name]));
+			out = out.replace(/\{\{after(\d+)\}\}/g, (m, n) => valueString(V.after ?.[`after${n}`]));
+			if(V.after ?.after1 !== undefined) out = out.replaceAll("{{after}}", valueString(V.after.after1));
+			return out;
+		}
+
+		function renderLastLiveVariables() {
+			const box = $("lastLiveVariables"), count = $("lastLiveCount");
+			if(!box || !count) return;
+			const vars = V.last && typeof V.last === "object" ? V.last : {};
+			const names = Object.keys(vars).sort();
+			count.textContent = `${names.length} variable${names.length === 1 ? "" : "s"}`;
+			if(!names.length) {
+				box.innerHTML = '<div class="help">No {{last.*}} variables have been extracted yet.</div>';
+				return;
+			}
+			box.innerHTML = names.map(name => {
+				const value = valueString(vars[name]);
+				return `<div class="last-live-var"><div class="name">{{last.${escapeHtml(name)}}}</div><div class="value">${escapeHtml(value)}</div></div>`;
+			}).join("");
+		}
+
+		function setLastVerificationNamespace(namespace, sourceResult = null) {
+			if(!namespace || typeof namespace !== "object") return;
+			if(!V.last || typeof V.last !== "object") V.last = {};
+			const changed = {};
+			for(const [name, value] of Object.entries(namespace)) {
+				if(value !== undefined && value !== null && value !== "") {
+					V.last[name] = value;
+					changed[name] = value;
+				}
+			}
+			renderLastLiveVariables();
+			if(Object.keys(changed).length) {
+				V.lastHistory.push({
+					seq: V.lastHistory.length,
+					phase: sourceResult?.phase || "",
+					round: sourceResult?.round ?? null,
+					id: sourceResult?.id ?? null,
+					key: sourceResult?.key || "",
+					requestId: sourceResult?.requestId || sourceResult?.request?.id || "",
+					values: {...changed}
+				});
+				drawLastVariableCharts();
+			}
+		}
+
+		function globalVariableMap() {
+			const out = {};
+			for(const v of S.globalVars || []) {
+				const name = String(v.name || "").trim();
+				if(/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) out[name] = String(v.value ?? "")
+			}
+			return out
+		}
+
+		function applyGlobalVars(text) {
+			const vars = globalVariableMap();
+			return String(text ?? "").replace(/\{\{global\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, n) => Object.prototype.hasOwnProperty.call(vars, n) ? vars[n] : m).replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, n) => Object.prototype.hasOwnProperty.call(vars, n) ? vars[n] : m)
+		}
+
+		function getGlobalVarEls() {
+			return [...$("globalVars").querySelectorAll(".global-var")]
+		}
+
+		function addGlobalVar(data = {}) {
+			const row = document.createElement("div");
+			row.className = "global-var";
+			row.innerHTML = '<div><label>Name</label><input class="globalName" placeholder="baseUrl" pattern="[A-Za-z_][A-Za-z0-9_]*"></div><div><label>Value</label><input class="globalValue" placeholder="https://example.com"></div><button type="button" class="globalFind" title="Find this value in responses and response headers">Find</button><button type="button" class="removeGlobal" title="Remove variable">×</button><div class="global-find-result hidden"></div>';
+			row.querySelector(".globalName").value = data.name || "";
+			row.querySelector(".globalValue").value = data.value ?? "";
+			row.querySelector(".globalFind").onclick = () => findGlobalValue(row);
+			row.querySelector(".removeGlobal").onclick = () => row.remove();
+			$("globalVars").appendChild(row)
+		}
+
+		function findGlobalValue(row) {
+			const value = row.querySelector(".globalValue").value;
+			const box = row.querySelector(".global-find-result");
+			if(!value) {
+				box.className = "global-find-result";
+				box.textContent = "Enter a value to search for.";
+				return
+			}
+			const needle = String(value).toLowerCase(),
+				hits = [];
+			for(const r of S.results || []) {
+				let bodyHit = String(r ?.raw ?? r ?.response ?? "").toLowerCase().includes(needle),
+					headerHits = [];
+				for(const [k, v] of Object.entries(r ?.responseHeaders || {})) {
+					if(String(k).toLowerCase().includes(needle) || String(v).toLowerCase().includes(needle)) headerHits.push(`${k}: ${v}`)
+				}
+				if(bodyHit || headerHits.length) hits.push({
+					r, bodyHit, headerHits
+				})
+			}
+			box.className = "global-find-result" + (hits.length ? " hit" : "");
+			if(!hits.length) {
+				box.innerHTML = `No matches for <strong>${escapeHtml(value)}</strong> in recorded responses or response headers.`;
+				return
+			}
+			box.innerHTML = `<strong>${hits.length} request${hits.length===1?"":"s"} matched</strong> for <span class="mono">${escapeHtml(value)}</span>` + hits.map(({
+				r, bodyHit, headerHits
+			}) => `<button type="button" class="find-hit" data-result-key="${escapeHtml(r.key||"")}"><span class="mono" title="${escapeHtml(r.requestId||r.id||"—")}">${escapeHtml((r.requestId||r.id||"—").slice(0,8))}</span> · ${escapeHtml(r.phase||"Request")}${r.round?" · R"+r.round:""}${bodyHit?" · response body":""}${headerHits.length?" · response header"+(headerHits.length>1?"s":""):""}</button>`).join("");
+			box.querySelectorAll(".find-hit").forEach(hit => hit.onclick = () => {
+				const key = hit.dataset.resultKey;
+				const target = $("rows").querySelector(`tr.results-row[data-k="${CSS.escape(key)}"]`);
+				$("rows").querySelectorAll("tr.results-row.find-highlight").forEach(x => x.classList.remove("find-highlight"));
+				if(target) {
+					target.classList.add("find-highlight");
+					target.scrollIntoView({
+						behavior: "smooth",
+						block: "center"
+					});
+				}
+			});
+		}
+
+		function globalVariableConfigs() {
+			return getGlobalVarEls().map(row => ({
+				name: row.querySelector(".globalName").value.trim(),
+				value: row.querySelector(".globalValue").value
+			})).filter(x => x.name)
+		}
+
+		function syncGlobalVars() {
+			S.globalVars = globalVariableConfigs()
+		}
+		// ============================================================
+		// 21. URL QUERY INITIALIZATION
+		// ============================================================
+		function initFromQuery() {
+			const params = new URLSearchParams(window.location.search);
+			const initial = params.get("url");
+			if(initial !== null && initial.trim()) $("url").value = initial;
+		}
+		const sleep = ms => new Promise(r => setTimeout(r, ms)),
+			clamp = (n, a, b) => Math.max(a, Math.min(b, n)),
+			unique = a => [...new Set(a)];
+
+		function hdrs(t) {
+			const h = {};
+			for(const l of t.split(/\r?\n/)) {
+				const i = l.indexOf(":");
+				if(i > 0) h[l.slice(0, i).trim()] = l.slice(i + 1).trim()
+			}
+			return h
+		}
+
+		function uuid() {
+			return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)
+		}
+		// ============================================================
+		// 3. BUILT-IN REQUEST TEMPLATING
+		// ============================================================
+		function tpl(t, i) {
+			return String(t || "").replaceAll("{{index}}", i).replaceAll("{{uuid}}", uuid()).replaceAll("{{timestamp}}", Date.now()).replaceAll("{{random}}", Math.floor(Math.random() * 1e9))
+		}
+
+		function ok(r) {
+			return $("successCodes").value.split(",").map(Number).includes(Number(r.status))
+		}
+
+		function path(v, p) {
+			if(!p) return;
+			let t = p.trim().replace(/^\$\.?/, "").match(/[^.[\]]+|\[(\d+)\]/g) || [],
+				x = v;
+			for(const z of t) {
+				const k = z[0] == "[" ? +z.slice(1, -1) : z;
+				if(x == null) return;
+				x = x[k]
+			}
+			return x
+		}
+		// ============================================================
+		// 6. JSON EXTRACTION
+		// ============================================================
+		function extractRegex(raw, pattern) {
+			try {
+				const m = String(raw ?? "").match(new RegExp(pattern, "m"));
+				return m ? String(m[1] !== undefined ? m[1] : m[0]) : undefined
+			} catch {
+				return
+			}
+		}
+
+		function extractXPath(raw, expr) {
+			try {
+				const doc = new DOMParser().parseFromString(String(raw ?? ""), "text/html");
+				const r = doc.evaluate(expr, doc, null, XPathResult.ANY_TYPE, null);
+				switch(r.resultType) {
+					case XPathResult.STRING_TYPE:
+						return r.stringValue;
+					case XPathResult.NUMBER_TYPE:
+						return Number.isFinite(r.numberValue) ? r.numberValue : undefined;
+					case XPathResult.BOOLEAN_TYPE:
+						return r.booleanValue;
+					case XPathResult.NODE_TYPE:
+						return r.singleNodeValue ?.textContent ?.trim();
+					case XPathResult.UNORDERED_NODE_ITERATOR_TYPE:
+						{
+							const a = [];
+							let n;
+							while(n = r.iterateNext()) a.push(n.textContent ?.trim() ?? "");
+							return a.length === 1 ? a[0] : a
+						}
+					default:
+						return r.singleNodeValue ?.textContent ?.trim()
+				}
+			} catch {
+				return
+			}
+		}
+
+		function extractValue(raw, ex) {
+			const mode = ex ?.mode || "json";
+			if(mode === "defined") return ex.value ?? ex.path ?? "";
+			if(mode === "regex") return extractRegex(raw, ex.path || ex.pattern || ex.regex);
+			if(mode === "xpath") return extractXPath(raw, ex.path || ex.xpath || "");
+			return extract(raw, ex.path || ex.extract || "")
+		}
+
+		function extract(raw, p) {
+			try {
+				return path(JSON.parse(raw), p)
+			} catch {
+				return
+			}
+		}
+
+		function percentile(a, p) {
+			if(!a.length) return 0;
+			const x = [...a].sort((a, b) => a - b);
+			return x[Math.min(x.length - 1, Math.max(0, Math.ceil(x.length * p) - 1))]
+		}
+		async function sha(s) {
+			const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s || ""));
+			return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("").slice(0, 16)
+		}
+
+		function config() {
+			return {
+				url: $("url").value.trim(),
+				method: $("method").value,
+				credentials: $("credentials").value,
+				headers: hdrs($("headers").value),
+				headersTemplate: $("headers").value,
+				body: $("body").value,
+				count: clamp(+$("count").value || 1, 1, 500),
+				rounds: clamp(+$("rounds").value || 1, 1, 100),
+				concurrency: clamp(+$("concurrency").value || 1, 1, 100),
+				spread: Math.max(0, +$("spread").value || 0),
+				timeout: Math.max(100, +$("timeout").value || 15000),
+				delay: Math.max(0, +$("roundDelay").value || 0),
+				dispatch: $("dispatch").value,
+				capture: $("capture").value,
+				fresh: $("fresh").checked,
+				enableBaseline: $("enableBaseline").checked,
+				enableRace: $("enableRace").checked,
+				targetConditions: conditionRows($("targetConditions")),
+				targetExtractors: [...(document.querySelector(".targetExtractors") ?.querySelectorAll(".extractor") || [])].map(row => ({
+					name: row.querySelector(".extractName").value.trim(),
+					mode: row.querySelector(".extractMode").value,
+					path: row.querySelector(".extractPath").value.trim(),
+					value: row.querySelector(".extractMode").value === "defined" ? row.querySelector(".extractPath").value : undefined
+				})).filter(x => x.name && (x.mode === "defined" ? x.value !== "" : x.path)),
+				targetSubsequentMode: $("targetSubsequentMode").value,
+				targetSubsequentRequests: targetSubsequentRequestConfigs(),
+				raceConditions: conditionRows($("raceConditions")),
+				globalStopConditionEnabled: $("enableGlobalStopCondition").checked,
+				globalStopConditions: conditionRows($("globalStopConditions")),
+				maxSuccess: Math.max(0, +$("maxSuccess").value || 0)
+			}
+		}
+
+		function setProgress(n) {
+			const pct = clamp(n, 0, 100);
+			$("progress").style.width = pct + "%";
+			if(!S.requestProgress.active) {
+				const text = $("progressText");
+				if(text) text.innerHTML = `<span>${pct.toFixed(0)}%</span><span>0 / 0 requests executed</span>`;
+			}
+		}
+
+		function initRequestProgress(c) {
+			const before = beforeSnapshotConfigs().length;
+			const after = afterSnapshotConfigs().length;
+			const baseline = c.enableBaseline ? c.count : 0;
+			const raceTargets = c.enableRace ? c.rounds * c.count : 0;
+			const subsequent = (c.enableBaseline ? c.count : 0) * (c.targetSubsequentRequests || []).length + raceTargets * (c.targetSubsequentRequests || []).length;
+			S.requestProgress = {active:true, executed:0, total:before + baseline + raceTargets + subsequent + after};
+			updateRequestProgress();
+		}
+
+		function updateRequestProgress() {
+			const p = S.requestProgress || {active:false, executed:0, total:0};
+			const pct = p.total ? clamp((p.executed / p.total) * 100, 0, 100) : 0;
+			$("progress").style.width = pct + "%";
+			const text = $("progressText");
+			if(text) text.innerHTML = `<span>${pct.toFixed(0)}%</span><span>${p.executed} / ${p.total} requests executed</span>`;
+		}
+
+		function requestCompleted() {
+			if(!S.requestProgress.active) return;
+			S.requestProgress.executed++;
+			updateRequestProgress();
+		}
+
+		let timelineLiveTimer = null;
+
+		function stop() {
+			S.running = false;
+			S.aborters.forEach(a => a.abort());
+			if(timelineLiveTimer) {
+				clearInterval(timelineLiveTimer);
+				timelineLiveTimer = null
+			}
+			renderTimeline();
+			$("run").disabled = false;
+			$("stop").disabled = true
+		}
+
+		function setRunning(v) {
+			S.running = v;
+			$("run").disabled = v;
+			$("stop").disabled = !v
+		}
+		// ============================================================
+		// 5. CENTRAL HTTP REQUEST EXECUTOR
+		// ============================================================
+		async function request(c, meta, body) {
+			const requestId = meta.requestId || ((crypto.randomUUID && crypto.randomUUID()) || uuid());
+			const ac = new AbortController();
+			S.aborters.push(ac);
+			const timer = setTimeout(() => ac.abort(), c.timeout),
+				t = performance.now(),
+				o = {...meta
+				};
+			o.status = "RUNNING";
+			const requestBody = ["GET", "HEAD"].includes(c.method) ? "" : (body ?? "");
+			o.requestId = requestId;
+			let queryParams = {};
+			try {
+				const u = new URL(c.url, window.location.href);
+				for(const [k, v] of u.searchParams) queryParams[k] = queryParams[k] === undefined ? v : Array.isArray(queryParams[k]) ? [...queryParams[k], v] : [queryParams[k], v]
+			} catch {}
+			o.request = {
+				id: requestId,
+				url: c.url,
+				method: c.method,
+				credentials: c.credentials,
+				headers: {...(c.headers || {})
+				},
+				queryParams,
+				body: requestBody
+			};
+			// Insert a live placeholder immediately when the request starts.
+			storeResult(o);
+			renderRows();
+			try {
+				const q = {
+					method: c.method,
+					headers: c.headers,
+					credentials: c.credentials,
+					cache: "no-store",
+					signal: ac.signal
+				};
+				if(!["GET", "HEAD"].includes(c.method)) q.body = body;
+				const r = await fetch(c.url, q),
+					raw = await r.text();
+				o.status = r.status;
+				o.responseHeaders = {};
+				for(const [k, v] of r.headers.entries()) o.responseHeaders[k] = v;
+				o.duration = Math.round(performance.now() - t);
+				o.size = new TextEncoder().encode(raw).length;
+				o.signature = await sha(raw);
+				o.raw = raw;
+				if(c.capture === "full") o.response = raw;
+				if(c.capture === "hash") o.response = "SHA-256 prefix: " + o.signature
+			} catch(e) {
+				o.duration = Math.round(performance.now() - t);
+				o.error = e.name === "AbortError" ? "Timeout / aborted" : e.message || String(e)
+			} finally {
+				clearTimeout(timer);
+				requestCompleted();
+			}
+			// Keep the same result object in the table after completion. This is
+			// important for Race -> Subsequent chains: the completed parent must
+			// remain visible while its child requests are executing.
+			trimStoredResults();
+			renderRows();
+			// Update latency visualizations as each request completes so the
+			// graphs reflect the live race progress instead of waiting for the
+			// whole experiment to finish.
+			drawCharts();
+			return o
+		}
+		// ============================================================
+		// 4. TARGET REQUEST RESOLUTION
+		// ============================================================
+		function resolveTarget(c, i) {
+			syncGlobalVars();
+			const requestId = (crypto.randomUUID && crypto.randomUUID()) || uuid();
+			const render = x => {
+				let out = applyGlobalVars(x);
+				out = applyVerificationVars(out);
+				if(c.fresh) out = tpl(out, i);
+				return out.replaceAll("{{requestId}}", requestId)
+			};
+			const h = {};
+			for(const [k, v] of Object.entries(hdrs(c.headersTemplate ?? ""))) h[render(k)] = render(v);
+			return {
+				requestId, url: render(c.url), headers: h, body: render(c.body)
+			}
+		}
+		// ============================================================
+		// 9. BASELINE EXECUTION
+		// ============================================================
+		function applyTargetExtraction(r, c) {
+			const namespace = {},
+				seen = new Set();
+			for(const ex of c.targetExtractors || []) {
+				if(seen.has(ex.name)) continue;
+				seen.add(ex.name);
+				const value = extractValue(r.raw, ex);
+				if(value !== undefined && value !== null && value !== "") namespace[ex.name] = value
+			}
+			if(Object.keys(namespace).length) {
+				r.extracted = namespace;
+				setLastVerificationNamespace(namespace, r)
+			}
+			return r
+		}
+		async function executeTargetResolved(c, meta, i, q) {
+			const displayOrder = meta.displayOrder || (meta.phase === "Race" ? [2, Number(meta.round) || 0, Number(i) || 0, 0] : meta.phase === "Baseline" ? [1, Number(i) || 0, 0, 0] : meta.phase === "Single" ? [4, 0, Number(i) || 0, 0] : [9, Number(i) || 0, 0, 0]);
+			const requestMeta = {...meta, requestId: q.requestId, displayOrder, mode: meta.mode || (meta.phase === "Race" ? c.dispatch : meta.phase === "Subsequent" ? c.targetSubsequentMode : "Sequential")};
+			const r = await request({...c, url: q.url, headers: q.headers}, requestMeta, q.body);
+			applyTargetExtraction(r, c);
+			if(checkGlobalStopCondition(c, r)) return r;
+			if(c.targetSubsequentRequests?.length && S.running) r.subsequentResults = await runTargetSubsequentRequests(c, {...requestMeta, subsequentMode:c.targetSubsequentMode || "sequential"}, i, r);
+			return r
+		}
+		async function executeTarget(c, meta, i) {
+			return executeTargetResolved(c, meta, i, resolveTarget(c, i));
+		}
+
+		async function baseline(c) {
+			const a = [];
+			if(!c.enableBaseline) return a;
+			for(let i = 1; i <= c.count && S.running; i++) {
+				syncGlobalVars();
+				if(!evaluateConditions(c.targetConditions)) {
+					a.push({
+						phase: "Baseline", round: 0, id: i, key: `B:${i}:SKIP:${Date.now()}`,
+						status: "SKIPPED", flag: "CONDITION-FALSE",
+						conditions: c.targetConditions, condition: conditionSummary(c.targetConditions),
+						request: {id:"", url:c.url, method:c.method, credentials:c.credentials, headers:{...c.headers}, queryParams:{}, body:c.body}
+					});
+					continue
+				}
+				const r = await executeTarget(c, {
+					phase: "Baseline",
+					mode: "sequential",
+					round: 0,
+					id: i,
+					key: "B:" + i,
+					launch: performance.now()
+				}, i);
+				a.push(r);
+				setProgress(10 + i / c.count * 15)
+			}
+			return a
+		}
+		// ============================================================
+		// 10. RACE EXECUTION
+		// ============================================================
+		async function race(c, r) {
+			if(!c.enableRace) return [];
+			const prepared = [];
+			for(let i = 1; i <= c.count && S.running; i++) {
+				if(c.spread) await sleep(Math.random() * c.spread);
+				syncGlobalVars();
+				if(!evaluateConditions(c.targetConditions)) continue;
+				const q = resolveTarget(c, i);
+				prepared.push({
+					id: i,
+					requestId: q.requestId,
+					url: q.url,
+					headers: q.headers,
+					body: q.body
+				})
+			}
+			if(c.dispatch === "sequential") {
+				const a = [];
+				for(let i = 1; i <= c.count && S.running; i++) {
+					if(i > 1 && c.spread) await sleep(Math.random() * c.spread);
+					syncGlobalVars();
+					if(!evaluateConditions(c.targetConditions)) continue;
+					const r0 = await executeTarget(c, {
+						phase: "Race",
+						mode: c.dispatch,
+						round: r,
+						id: i,
+						key: `R${r}:${i}`,
+						launch: performance.now()
+					}, i);
+					a.push(r0)
+				}
+				return a
+			}
+			if(c.dispatch === "barrier") {
+				let go;
+				const p = new Promise(q => go = q),
+					tasks = prepared.map(x => (async() => {
+						await p;
+						const r0 = await executeTargetResolved(c, {
+							phase: "Race",
+							round: r,
+							id: x.id,
+							key: `R${r}:${x.id}`,
+							launch: performance.now()
+						}, x.id, x);
+						return {x, r0}
+					})());
+				go();
+				const completed = await Promise.all(tasks);
+				return completed.map(x => x.r0)
+			}
+			let next = 0,
+				out = [];
+			async function worker() {
+				while(S.running) {
+					const i = next++;
+					if(i >= prepared.length) return;
+					const r0 = await executeTargetResolved(c, {
+						phase: "Race",
+						mode: c.dispatch,
+						round: r,
+						id: prepared[i].id,
+						key: `R${r}:${prepared[i].id}`,
+						launch: performance.now()
+					}, prepared[i].id, prepared[i]);
+					out.push({x: prepared[i], r0})
+				}
+			}
+			await Promise.all(Array.from({
+				length: Math.min(c.concurrency, c.count)
+			}, worker));
+			return out.map(x => x.r0)
+		}
+
+		function getTargetSubsequentEls() {
+			return [...$("targetSubsequentRequests").querySelectorAll(".targetSubsequentRequest")]
+		}
+
+		function targetSubsequentRequestConfigs() {
+			return getTargetSubsequentEls().map(el => ({
+				name: el.querySelector(".subsequentName").value.trim(),
+				mode: $("targetSubsequentMode").value || "sequential",
+				url: el.querySelector(".subsequentUrl").value.trim(),
+				method: el.querySelector(".subsequentMethod").value,
+				expected: el.querySelector(".subsequentExpected").value,
+				conditions: conditionRows(el.querySelector(".subsequentConditions")),
+				delay: Math.max(0, +el.querySelector(".subsequentDelay").value || 0),
+				body: el.querySelector(".subsequentBody").value,
+				headers: el.querySelector(".subsequentHeaders").value,
+				extractors: getExtractorEls(el).map(row => ({
+					name: row.querySelector(".extractName").value.trim(),
+					mode: row.querySelector(".extractMode").value,
+					path: row.querySelector(".extractPath").value.trim(),
+					value: row.querySelector(".extractMode").value === "defined" ? row.querySelector(".extractPath").value : undefined
+				})).filter(x => x.name && (x.mode === "defined" ? x.value !== "" : x.path))
+			})).filter(x => x.url)
+		}
+
+		function addTargetSubsequentRequest(data = {}) {
+			const i = getTargetSubsequentEls().length, el = document.createElement("div");
+			el.className = "snapshot targetSubsequentRequest";
+			el.innerHTML = `<div class="sub snapshotHeader"><span>Subsequent request ${i+1}</span><span class="snapshotHeaderActions"><button type="button" class="subsequentPlay" title="Send this request now">▶</button><button type="button" class="subsequentClone" title="Clone this request">⧉</button><button type="button" class="subsequentToggle" title="Collapse request">▾</button><button type="button" class="removeSubsequent" style="padding:3px 7px">×</button></span></div><div class="snapshotBody"><label>Name</label><input class="subsequentName" placeholder="cleanup"><label>URL</label><input class="subsequentUrl" placeholder="https://example.com/api/next"><div class="row3"><div><label>Method</label><select class="subsequentMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div><div><label>Expected</label><input class="subsequentExpected" placeholder='"ok": true'></div><div><label>Delay before (ms)</label><input class="subsequentDelay" type="number" min="0" max="60000" value="0"></div></div><div class="conditionBlock"><div class="conditionTitle"><label>Conditions</label><button type="button" class="addSubsequentCondition">+ Add condition</button></div><div class="subsequentConditions"></div><div class="help">All conditions must pass. Value and Expected can use {{last.value}}, {{global.name}}, and other existing verification variables.</div></div><label>Payload</label><textarea class="subsequentBody" placeholder='{"id":"{{last.id}}"}'></textarea><label>Headers</label><textarea class="subsequentHeaders" placeholder="Authorization: Bearer {{last.token}}&#10;Content-Type: application/json"></textarea><div class="help">Leave empty to use the global verification headers.</div><div class="extractors"></div><div class="actions" style="margin-top:7px"><button type="button" class="addExtractor">+ Add value extraction</button></div><div class="help">Values from this response are added to {{last.*}} and can be used by the next subsequent request.</div></div>`;
+			el.querySelector(".subsequentName").value = data.name || `request${i+1}`;
+			el.querySelector(".subsequentUrl").value = data.url || "";
+			el.querySelector(".subsequentMethod").value = data.method || "GET";
+			el.querySelector(".subsequentExpected").value = data.expected || "";
+			el.querySelector(".subsequentDelay").value = Math.max(0, +data.delay || 0);
+			el.querySelector(".subsequentBody").value = data.body || "";
+			el.querySelector(".subsequentHeaders").value = data.headers || "";
+			for(const c of(data.conditions || [])) addConditionRow(el.querySelector(".subsequentConditions"), c);
+			(data.extractors || []).forEach((x,j) => addExtractor(el, x, x.name || `value${j+1}`));
+			el.querySelector(".addSubsequentCondition").onclick = () => addConditionRow(el.querySelector(".subsequentConditions"));
+			el.querySelector(".addExtractor").onclick = () => addExtractor(el, {}, `value${getExtractorEls(el).length+1}`);
+			el.querySelector(".subsequentPlay").onclick = () => playTargetSubsequent(el);
+			el.querySelector(".subsequentClone").onclick = () => { const cfg = targetSubsequentRequestConfigs()[+(el.dataset.index || 0)]; if(cfg) addTargetSubsequentRequest(cfg); };
+			el.querySelector(".subsequentToggle").onclick = () => { const body = el.querySelector(".snapshotBody"), btn = el.querySelector(".subsequentToggle"), collapsed = el.classList.toggle("snapshotCollapsed"); body.hidden = collapsed; btn.textContent = collapsed ? "▸" : "▾"; btn.title = collapsed ? "Expand request" : "Collapse request"; };
+			el.querySelector(".removeSubsequent").onclick = () => { el.remove(); renumberTargetSubsequentRequests(); };
+			$("targetSubsequentRequests").appendChild(el);
+			renumberTargetSubsequentRequests();
+		}
+
+		function renumberTargetSubsequentRequests() {
+			getTargetSubsequentEls().forEach((el,i) => { el.dataset.index = i; el.querySelector(".sub").firstElementChild.textContent = `Subsequent request ${i+1}`; });
+		}
+
+		async function playTargetSubsequent(el) {
+			if(S.running) return;
+			const cfg = targetSubsequentRequestConfigs()[+(el.dataset.index || 0)];
+			if(!cfg?.url) { alert("Enter a subsequent request URL first."); return; }
+			const btn = el.querySelector(".subsequentPlay"); btn.disabled = true; btn.textContent = "…";
+			try {
+				syncGlobalVars();
+				if(!evaluateConditions(cfg.conditions)) { alert("Subsequent request conditions are false."); return; }
+				const r = await executeTargetSubsequent(cfg, {phase:"Subsequent", round:0, id:"manual", key:"MANUAL-SUBSEQUENT:" + Date.now(), launch:performance.now()}, 0, 0);
+				S.selected = r; renderRows(); renderSelectedResponse(r);
+			} catch(e) { alert(e.message || String(e)); } finally { btn.disabled = false; btn.textContent = "▶"; }
+		}
+
+		async function executeTargetSubsequent(sc, meta, targetIndex, subsequentIndex) {
+			if(sc.delay) await sleep(sc.delay);
+			syncGlobalVars();
+			const requestId = (crypto.randomUUID && crypto.randomUUID()) || uuid();
+			const render = x => applyGlobalVars(applyVerificationVars(tpl(x, targetIndex))).replaceAll("{{requestId}}", requestId);
+			const headersText = sc.headers?.trim() ? sc.headers : $("verifyHeaders").value;
+			const parentOrder = Array.isArray(meta.displayOrder) ? meta.displayOrder : [9, targetIndex, 0, 0];
+			const displayOrder = [...parentOrder.slice(0, 3), subsequentIndex + 1];
+			const r = await request({...config(), url:render(sc.url), method:sc.method, headers:hdrs(render(headersText))}, { ...meta, phase:"Subsequent", mode:meta.subsequentMode || "sequential", id:`${meta.id}.S${subsequentIndex+1}`, key:`${meta.key}:S${subsequentIndex+1}`, requestId, launch:performance.now(), displayOrder }, render(sc.body));
+			if(sc.expected && !r.raw?.includes(sc.expected)) r.flag = "EXPECTED-FRAGMENT-MISSING";
+			const namespace = {}, seen = new Set();
+			for(const ex of sc.extractors || []) { if(seen.has(ex.name)) continue; seen.add(ex.name); const value = extractValue(r.raw, ex); if(value !== undefined && value !== null && value !== "") namespace[ex.name] = value; }
+			if(Object.keys(namespace).length) { r.extracted = namespace; setLastVerificationNamespace(namespace, r); }
+			checkGlobalStopCondition(config(), r);
+			r.parentRequestId = meta.requestId || ""; r.targetIndex = targetIndex; r.subsequentIndex = subsequentIndex + 1;
+			return r;
+		}
+
+		function skippedTargetSubsequent(sc, c, meta, targetIndex, targetResult, i) {
+			const parentOrder = Array.isArray(meta.displayOrder) ? meta.displayOrder : [9, targetIndex, 0, 0];
+			return {phase:"Subsequent", mode:c.targetSubsequentMode || "sequential", round:meta.round || 0, id:`${meta.id}.S${i+1}`, key:`${meta.key}:S${i+1}:SKIP`, status:"SKIPPED", flag:"CONDITION-FALSE", conditions:sc.conditions, condition:conditionSummary(sc.conditions), parentRequestId:targetResult.requestId, targetIndex, subsequentIndex:i+1, displayOrder:[...parentOrder.slice(0, 3), i + 1], request:{id:"",url:sc.url,method:sc.method,credentials:c.credentials,headers:{},queryParams:{},body:sc.body}};
+		}
+
+		async function runTargetSubsequentRequests(c, meta, targetIndex, targetResult) {
+			const list = c.targetSubsequentRequests || [], out = [];
+			if(!list.length) return out;
+
+			if((c.targetSubsequentMode || "sequential") === "concurrent") {
+				syncGlobalVars();
+				const tasks = list.map((sc, i) => {
+					if(!S.running || !evaluateConditions(sc.conditions)) {
+						const skipped = skippedTargetSubsequent(sc, c, meta, targetIndex, targetResult, i);
+						out.push(skipped); storeResult(skipped); return Promise.resolve(skipped);
+					}
+					return executeTargetSubsequent(sc, meta, targetIndex, i).then(r => { out.push(r); return r; });
+				});
+				await Promise.all(tasks);
+				return out.sort((a,b) => (a.subsequentIndex || 0) - (b.subsequentIndex || 0));
+			}
+
+			for(let i=0; i<list.length && S.running; i++) {
+				const sc = list[i];
+				syncGlobalVars();
+				if(!evaluateConditions(sc.conditions)) {
+					const skipped = skippedTargetSubsequent(sc, c, meta, targetIndex, targetResult, i);
+					out.push(skipped); storeResult(skipped); continue;
+				}
+				out.push(await executeTargetSubsequent(sc, meta, targetIndex, i));
+			}
+			return out;
+		}
+
+		function getBeforeSnapshotEls() {
+			return [...$("beforeSnapshots").querySelectorAll(".snapshot")]
+		}
+
+		function getAfterSnapshotEls() {
+			return [...$("afterSnapshots").querySelectorAll(".snapshot")]
+		}
+
+		function getExtractorEls(snapshot) {
+			return [...snapshot.querySelectorAll(".extractor")]
+		}
+
+		function addExtractor(root, data = {}, defaultName = "value") {
+			const row = document.createElement("div");
+			row.className = "extractor row";
+			row.innerHTML = `<div><label>Value name</label><input class="extractName" placeholder="userId" pattern="[A-Za-z_][A-Za-z0-9_]*"></div><div><label>Extraction</label><select class="extractMode"><option value="json">JSON Path</option><option value="regex">Regex</option><option value="xpath">XPath</option><option value="defined">Defined</option></select></div><div><label class="extractPathLabel">JSON path</label><input class="extractPath" placeholder="$.user.id"></div><button type="button" class="removeExtractor" title="Remove extractor" style="align-self:end;padding:7px 10px">×</button>`;
+			const mode = row.querySelector(".extractMode");
+			const path = row.querySelector(".extractPath");
+			const label = row.querySelector(".extractPathLabel");
+			const setMode = () => {
+				const regex = mode.value === "regex";
+				const xpath = mode.value === "xpath";
+				const defined = mode.value === "defined";
+				label.textContent = defined ? "Defined value" : xpath ? "XPath" : regex ? "Regex" : "JSON path";
+				path.placeholder = defined ? "Enter value manually" : xpath ? "//div[@id=\'userId\']/text()" : regex ? '"userId"\s*:\s*"([^"]+)"' : '$.user.id';
+			};
+			row.querySelector(".extractName").value = data.name || defaultName;
+			mode.value = data.mode || "json";
+			path.value = data.mode === "defined" ? (data.value ?? data.path ?? "") : (data.path || data.extract || data.pattern || data.regex || "");
+			mode.onchange = setMode;
+			setMode();
+			row.querySelector(".removeExtractor").onclick = () => {
+				row.remove();
+			};
+			const target = root ?.classList ?.contains("targetExtractors");
+			(target ? root : root.querySelector(".extractors")).appendChild(row);
+		}
+
+		function addTargetExtractor(data = {}, defaultName = "value") {
+			const root = document.querySelector(".targetExtractors");
+			if(!root) return;
+			addExtractor(root, data, defaultName)
+		}
+
+		function addConditionRow(root, data = {}) {
+			const r = document.createElement("div");
+			r.className = "conditionRow";
+			r.innerHTML = '<input class="conditionValue" placeholder="{{before1.balance}}"><select class="conditionOp"><option>equals</option><option>not equals</option><option>exists</option><option>≥</option><option>≤</option><option>contains</option></select><input class="conditionExpected" placeholder="{{before1.balance}}"><button type="button">×</button>';
+			r.querySelector(".conditionValue").value = data.value || "";
+			r.querySelector(".conditionOp").value = data.op || "equals";
+			r.querySelector(".conditionExpected").value = data.expected || "";
+			r.querySelector(".conditionOp").onchange = () => {
+				r.querySelector(".conditionExpected").disabled = r.querySelector(".conditionOp").value === "exists"
+			};
+			r.querySelector(".conditionOp").onchange();
+			r.querySelector("button").onclick = () => r.remove();
+			root.appendChild(r)
+		}
+		async function playSnapshot(el, phase) {
+			if(S.running) return;
+			const isBefore = phase === "Before",
+				idx = (+(el.dataset.index || 0)) + 1;
+			const cfg = isBefore ? beforeSnapshotConfigs()[idx - 1] : afterSnapshotConfigs()[idx - 1];
+			if(!cfg ?.url) {
+				alert("Enter a snapshot URL first.");
+				return
+			}
+			const btn = el.querySelector(".snapshotPlay");
+			btn.disabled = true;
+			btn.classList.add("playing");
+			btn.textContent = "…";
+			try {
+				syncGlobalVars();
+				const sc = {...cfg, label: `${phase.toLowerCase()}-${idx}`
+				};
+				if(!evaluateConditions(sc.conditions)) {
+					const skipped = {
+						phase: "Snapshot",
+						id: sc.label,
+						key: "MANUAL-SKIP:" + sc.label + ":" + Date.now(),
+						status: "SKIPPED",
+						flag: "CONDITION-FALSE",
+						conditions: sc.conditions,
+						condition: conditionSummary(sc.conditions),
+						request: {
+							id: "",
+							url: sc.url,
+							method: sc.method,
+							credentials: config().credentials,
+							headers: {},
+							queryParams: {},
+							body: sc.body
+						}
+					};
+					storeResult(skipped);
+					S.selected = skipped;
+					renderRows();
+					renderSelectedResponse(skipped);
+					return;
+				}
+				const r = await snapshotConfig(sc, config());
+				if(sc.expected && !r.raw ?.includes(sc.expected)) r.flag = "EXPECTED-FRAGMENT-MISSING";
+				const namespace = {},
+					seen = new Set();
+				for(const ex of sc.extractors || []) {
+					if(seen.has(ex.name)) continue;
+					seen.add(ex.name);
+					namespace[ex.name] = extractValue(r.raw, ex)
+				}
+				r.extracted = namespace;
+				if(isBefore) V.before[`before${idx}`] = namespace;
+				else {
+					if(!V.after) V.after = {};
+					V.after[`after${idx}`] = namespace
+				}
+				setLastVerificationNamespace(namespace, r);
+				S.selected = r;
+				renderRows();
+				renderSelectedResponse(r);
+				renderVerificationSnapshots();
+			} catch(e) {
+				alert(e.message || String(e))
+			} finally {
+				btn.disabled = false;
+				btn.classList.remove("playing");
+				btn.textContent = "▶"
+			}
+		}
+
+		function addBeforeSnapshot(data = {}) {
+			const i = getBeforeSnapshotEls().length,
+				el = document.createElement("div");
+			el.className = "snapshot";
+			el.innerHTML = `<div class="sub snapshotHeader"><span>Before snapshot ${i+1}</span><span class="snapshotHeaderActions"><button type="button" class="snapshotPlay" title="Send this request now">▶</button><button type="button" class="snapshotClone" title="Clone this request">⧉</button><button type="button" class="snapshotToggle" title="Collapse request">▾</button><button type="button" class="removeBefore" style="padding:3px 7px">×</button></span></div><div class="snapshotBody"><label>URL</label><input class="beforeUrl" placeholder="https://example.com/api/state"><div class="row3"><div><label>Method</label><select class="beforeMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div><div><label>Expected</label><input class="beforeExpected" placeholder='"remaining": 20'></div><div><label>Delay before (ms)</label><input class="beforeDelay" type="number" min="0" max="60000" value="0"></div></div><div class="conditionBlock"><div class="conditionTitle"><label>Conditions</label><button type="button" class="addBeforeCondition">+ Add condition</button></div><div class="beforeConditions"></div><div class="help">All conditions must pass. Both Value and Expected can use template variables such as {{before1.value}}, {{after1.value}}, {{last.value}}, or {{global.name}}.</div></div><label>Payload</label><textarea class="beforeBody" placeholder='{"include":"state"}'></textarea><label>Verification headers</label><textarea class="beforeHeaders" placeholder="Authorization: Bearer {{before1.token}}&#10;Content-Type: application/json"></textarea><div class="help">Leave empty to use the global verification headers. Extracted values from earlier snapshots can be used here, e.g. {{before1.token}} or {{last.token}}.</div><div class="extractors"></div><div class="actions" style="margin-top:7px"><button type="button" class="addExtractor">+ Add value extraction</button></div><div class="help">Values from this response are available as {{before1.userId}}, {{before1.balance}}, etc. Select JSON Path, Regex, XPath, or Defined independently for each variable. Each snapshot has its own namespace, so the same value name can safely be reused in another snapshot as {{before2.userId}}.</div></div>`;
+			el.querySelector(".beforeUrl").value = data.url || "";
+			el.querySelector(".beforeMethod").value = data.method || "GET";
+			el.querySelector(".beforeExpected").value = data.expected || "";
+			el.querySelector(".beforeDelay").value = Math.max(0, +data.delay || 0);
+			el.querySelector(".beforeBody").value = data.body || "";
+			el.querySelector(".beforeHeaders").value = data.headers || data.verifyHeaders || "";
+			for(const c of(data.conditions || [])) {
+				addConditionRow(el.querySelector(".beforeConditions"), c)
+			}
+			if(!data.conditions ?.length && data.condition) {
+				const m = String(data.condition).match(/^(.*?)\s+(eq|lt|gt|contains)\s+(.*?)$/i);
+				addConditionRow(el.querySelector(".beforeConditions"), m ? {
+					value: m[1],
+					op: m[2].toLowerCase() === "eq" ? "equals" : m[2].toLowerCase(),
+					expected: m[3]
+				} : {
+					value: data.condition,
+					op: "equals",
+					expected: "true"
+				})
+			}
+			const exs = Array.isArray(data.extractors) ? data.extractors : (data.extract ? [{
+				name: "value",
+				path: data.extract
+			}] : []);
+			exs.forEach((x, j) => addExtractor(el, x, x.name || `value${j+1}`));
+			el.querySelector(".snapshotPlay").onclick = () => playSnapshot(el, "Before");
+			el.querySelector(".snapshotClone").onclick = () => cloneSnapshot(el, "Before");
+			el.querySelector(".snapshotToggle").onclick = () => {
+				const body = el.querySelector(".snapshotBody"),
+					btn = el.querySelector(".snapshotToggle"),
+					collapsed = el.classList.toggle("snapshotCollapsed");
+				body.hidden = collapsed;
+				btn.textContent = collapsed ? "▸" : "▾";
+				btn.title = collapsed ? "Expand request" : "Collapse request"
+			};
+			el.querySelector(".addBeforeCondition").onclick = () => addConditionRow(el.querySelector(".beforeConditions"));
+			el.querySelector(".addExtractor").onclick = () => addExtractor(el, {}, `value${getExtractorEls(el).length+1}`);
+			el.querySelector(".removeBefore").onclick = () => {
+				el.remove();
+				renumberBeforeSnapshots()
+			};
+			$("beforeSnapshots").appendChild(el);
+			renumberBeforeSnapshots();
+		}
+
+		function renumberBeforeSnapshots() {
+			getBeforeSnapshotEls().forEach((el, i) => {
+				el.dataset.index = i;
+				el.querySelector(".sub").childNodes[0].textContent = `Before snapshot ${i+1} `
+			})
+		}
+
+		function cloneSnapshot(el, phase) {
+			const isBefore = phase === "Before",
+				idx = +(el.dataset.index || 0);
+			const cfg = isBefore ? beforeSnapshotConfigs()[idx] : afterSnapshotConfigs()[idx];
+			if(!cfg) return;
+			if(isBefore) addBeforeSnapshot(cfg);
+			else addAfterSnapshot(cfg);
+			const els = isBefore ? getBeforeSnapshotEls() : getAfterSnapshotEls();
+			const clone = els[els.length - 1];
+			clone.scrollIntoView({
+				behavior: "smooth",
+				block: "nearest"
+			});
+			clone.querySelector(isBefore ? ".beforeUrl" : ".afterUrl") ?.focus();
+		}
+
+		function conditionRows(root) {
+			return [...root.querySelectorAll(".conditionRow")].map(row => ({
+				value: row.querySelector(".conditionValue").value.trim(),
+				op: row.querySelector(".conditionOp").value,
+				expected: row.querySelector(".conditionExpected").value.trim()
+			})).filter(x => x.value && ((x.op === "exists") || x.expected !== ""))
+		}
+
+		function beforeSnapshotConfigs() {
+			return getBeforeSnapshotEls().map(el => ({
+				url: el.querySelector(".beforeUrl").value.trim(),
+				method: el.querySelector(".beforeMethod").value,
+				expected: el.querySelector(".beforeExpected").value,
+				conditions: conditionRows(el.querySelector(".beforeConditions")),
+				body: el.querySelector(".beforeBody").value,
+				delay: Math.max(0, +el.querySelector(".beforeDelay").value || 0),
+				headers: el.querySelector(".beforeHeaders").value,
+				extractors: getExtractorEls(el).map(row => ({
+					name: row.querySelector(".extractName").value.trim(),
+					mode: row.querySelector(".extractMode").value,
+					path: row.querySelector(".extractPath").value.trim(),
+					value: row.querySelector(".extractMode").value === "defined" ? row.querySelector(".extractPath").value : undefined
+				})).filter(x => x.name && (x.mode === "defined" ? x.value !== "" : x.path))
+			})).filter(x => x.url)
+		}
+
+		function resolveConditionValue(expr) {
+			let out = String(expr ?? "");
+			for(let i = 0; i < 3; i++) {
+				const next = applyGlobalVars(applyVerificationVars(out));
+				if(next === out) break;
+				out = next
+			}
+			return out.trim()
+		}
+
+		function evaluateConditionRow(c) {
+			const left = resolveConditionValue(c.value),
+				right = resolveConditionValue(c.expected),
+				v = left;
+			switch(c.op) {
+				case "exists":
+					return v !== "" && v !== "undefined";
+				case "equals":
+					return left === right;
+				case "not equals":
+					return left !== right;
+				case "≥":
+					{
+						const a = Number(left),
+							b = Number(right);
+						return Number.isFinite(a) && Number.isFinite(b) && a >= b
+					}
+				case "≤":
+					{
+						const a = Number(left),
+							b = Number(right);
+						return Number.isFinite(a) && Number.isFinite(b) && a <= b
+					}
+				case "contains":
+					return left.toLowerCase().includes(right.toLowerCase());
+				default:
+					return false
+			}
+		}
+
+		function evaluateConditions(conditions) {
+			const rows = Array.isArray(conditions) ? conditions.filter(Boolean) : [];
+			return rows.length ? rows.every(evaluateConditionRow) : true
+		}
+
+		function conditionSummary(conditions) {
+			return(conditions || []).map(c => `${c.value} ${c.op} ${c.expected}`).join(" AND ")
+		}
+
+		function checkGlobalStopCondition(c, result) {
+			if(!S.running || !c?.globalStopConditionEnabled) return false;
+			if(!evaluateConditions(c.globalStopConditions)) return false;
+			if(result) result.globalStopTriggered = true;
+			stop();
+			return true
+		}
+		async function snapshotConfig(sc, c) {
+			syncGlobalVars();
+			const requestId = (crypto.randomUUID && crypto.randomUUID()) || uuid();
+			const render = x => applyGlobalVars(applyVerificationVars(tpl(x, 0))).replaceAll("{{requestId}}", requestId);
+			const headersText = sc.headers ?.trim() ? sc.headers : $('verifyHeaders').value;
+			const m = String(sc.label || "").match(/^(before|after)-(\d+)$/i);
+			const displayOrder = m ? [m[1].toLowerCase() === "after" ? 3 : 0, Number(m[2]), 0, 0] : [9, 0, 0, 0];
+			return request({...c, url: render(sc.url), method: sc.method, headers: hdrs(render(headersText))
+			}, {
+				phase: "Snapshot",
+				round: 0,
+				id: sc.label,
+				key: "S:" + sc.label + ":" + sc.url + ":" + requestId,
+				launch: 0,
+				requestId,
+				displayOrder
+			}, render(sc.body))
+		}
+
+		function addAfterSnapshot(data = {}) {
+			const i = getAfterSnapshotEls().length,
+				el = document.createElement("div");
+			el.className = "snapshot";
+			el.innerHTML = `<div class="sub snapshotHeader"><span>After snapshot ${i+1}</span><span class="snapshotHeaderActions"><button type="button" class="snapshotPlay" title="Send this request now">▶</button><button type="button" class="snapshotClone" title="Clone this request">⧉</button><button type="button" class="snapshotToggle" title="Collapse request">▾</button><button type="button" class="removeAfter" style="padding:3px 7px">×</button></span></div><div class="snapshotBody"><label>URL</label><input class="afterUrl" placeholder="https://example.com/api/state"><div class="row3"><div><label>Method</label><select class="afterMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div><div><label>Expected</label><input class="afterExpected" placeholder='"remaining": 0'></div><div><label>Delay before (ms)</label><input class="afterDelay" type="number" min="0" max="60000" value="0"></div></div><div class="conditionBlock"><div class="conditionTitle"><label>Conditions</label><button type="button" class="addAfterCondition">+ Add condition</button></div><div class="afterConditions"></div><div class="help">All conditions must pass. Both Value and Expected can use template variables such as {{before1.value}}, {{after1.value}}, {{last.value}}, or {{global.name}}.</div></div><label>Payload</label><textarea class="afterBody" placeholder='{"include":"state"}'></textarea><label>Verification headers</label><textarea class="afterHeaders" placeholder="Authorization: Bearer {{before1.token}}&#10;Content-Type: application/json"></textarea><div class="help afterHeadersHelp">Leave empty to use the global verification headers. Earlier After snapshot values can be used here, e.g. {{after1.token}} or {{last.token}}.</div><div class="extractors"></div><div class="actions" style="margin-top:7px"><button type="button" class="addExtractor">+ Add value extraction</button></div><div class="help afterHelp">Values from this response are available as {{after1.value}}, {{after1.balance}}, etc. Select JSON Path, Regex, XPath, or Defined independently for each variable. Each snapshot has its own namespace, so the same value name can safely be reused in another snapshot as {{after2.value}}.</div></div>`;
+			el.querySelector(".afterUrl").value = data.url || "";
+			el.querySelector(".afterMethod").value = data.method || "GET";
+			el.querySelector(".afterExpected").value = data.expected || "";
+			el.querySelector(".afterDelay").value = Math.max(0, +data.delay || 0);
+			el.querySelector(".afterBody").value = data.body || "";
+			el.querySelector(".afterHeaders").value = data.headers || data.verifyHeaders || "";
+			for(const c of(data.conditions || [])) {
+				addConditionRow(el.querySelector(".afterConditions"), c)
+			}
+			if(!data.conditions ?.length && data.condition) {
+				const m = String(data.condition).match(/^(.*?)\s+(eq|lt|gt|contains)\s+(.*?)$/i);
+				addConditionRow(el.querySelector(".afterConditions"), m ? {
+					value: m[1],
+					op: m[2].toLowerCase() === "eq" ? "equals" : m[2].toLowerCase(),
+					expected: m[3]
+				} : {
+					value: data.condition,
+					op: "equals",
+					expected: "true"
+				})
+			}
+			const exs = Array.isArray(data.extractors) ? data.extractors : (data.extract ? [{
+				name: "value",
+				path: data.extract
+			}] : []);
+			exs.forEach((x, j) => addExtractor(el, x, x.name || `value${j+1}`));
+			el.querySelector(".snapshotPlay").onclick = () => playSnapshot(el, "After");
+			el.querySelector(".snapshotClone").onclick = () => cloneSnapshot(el, "After");
+			el.querySelector(".snapshotToggle").onclick = () => {
+				const body = el.querySelector(".snapshotBody"),
+					btn = el.querySelector(".snapshotToggle"),
+					collapsed = el.classList.toggle("snapshotCollapsed");
+				body.hidden = collapsed;
+				btn.textContent = collapsed ? "▸" : "▾";
+				btn.title = collapsed ? "Expand request" : "Collapse request"
+			};
+			el.querySelector(".addAfterCondition").onclick = () => addConditionRow(el.querySelector(".afterConditions"));
+			el.querySelector(".addExtractor").onclick = () => addExtractor(el, {}, `value${getExtractorEls(el).length+1}`);
+			el.querySelector(".removeAfter").onclick = () => {
+				el.remove();
+				renumberAfterSnapshots()
+			};
+			$("afterSnapshots").appendChild(el);
+			renumberAfterSnapshots();
+		}
+
+		function renumberAfterSnapshots() {
+			getAfterSnapshotEls().forEach((el, i) => {
+				el.dataset.index = i;
+				el.querySelector(".sub").childNodes[0].textContent = `After snapshot ${i+1} `;
+				const h = el.querySelector(".afterHelp");
+				if(h) h.textContent = `Values from this response are available as {{after${i+1}.value}}, {{after${i+1}.balance}}, etc. Later after snapshots can use earlier values such as {{after1.value}}.`
+			})
+		}
+
+		function afterSnapshotConfigs() {
+			return getAfterSnapshotEls().map(el => ({
+				url: el.querySelector(".afterUrl").value.trim(),
+				method: el.querySelector(".afterMethod").value,
+				expected: el.querySelector(".afterExpected").value,
+				conditions: conditionRows(el.querySelector(".afterConditions")),
+				delay: Math.max(0, +el.querySelector(".afterDelay").value || 0),
+				body: el.querySelector(".afterBody").value,
+				headers: el.querySelector(".afterHeaders").value,
+				extractors: getExtractorEls(el).map(row => ({
+					name: row.querySelector(".extractName").value.trim(),
+					mode: row.querySelector(".extractMode").value,
+					path: row.querySelector(".extractPath").value.trim(),
+					value: row.querySelector(".extractMode").value === "defined" ? row.querySelector(".extractPath").value : undefined
+				})).filter(x => x.name && (x.mode === "defined" ? x.value !== "" : x.path))
+			})).filter(x => x.url)
+		}
+		// ============================================================
+		// 7. AFTER SNAPSHOT PIPELINE
+		// ============================================================
+		async function runAfterSnapshots(c) {
+			const out = [];
+			const cfgs = afterSnapshotConfigs();
+			V.after = {};
+			for(let i = 0; i < cfgs.length && S.running; i++) {
+				const sc = {...cfgs[i], label: "after-" + (i + 1)
+				};
+				if(!evaluateConditions(sc.conditions)) {
+					out.push({
+						phase: "Snapshot",
+						id: sc.label,
+						key: "SKIP:" + sc.label + ":" + Date.now(),
+						displayOrder: [sc.label.startsWith("after-") ? 3 : 0, Number(sc.label.split("-")[1]) || 0, 0, 0],
+						status: "SKIPPED",
+						flag: "CONDITION-FALSE",
+						conditions: sc.conditions,
+						condition: conditionSummary(sc.conditions),
+						request: {
+							id: "",
+							url: sc.url,
+							method: sc.method,
+							credentials: c.credentials,
+							headers: {},
+							queryParams: {},
+							body: sc.body
+						}
+					});
+					continue
+				}
+				if(sc.delay) await sleep(sc.delay);
+				if(!S.running) break;
+				const r = await snapshotConfig(sc, c);
+				if(sc.expected && !r.raw ?.includes(sc.expected)) r.flag = "EXPECTED-FRAGMENT-MISSING";
+				const namespace = {};
+				const seen = new Set();
+				for(const ex of sc.extractors || []) {
+					if(seen.has(ex.name)) continue;
+					seen.add(ex.name);
+					namespace[ex.name] = extractValue(r.raw, ex)
+				}
+				r.extracted = namespace;
+				V.after[`after${i+1}`] = namespace;
+				setLastVerificationNamespace(namespace, r);
+				out.push(r);
+				if(checkGlobalStopCondition(c, r)) break
+			}
+			S.after = out;
+			return out
+		}
+
+		function assertions() {
+			return [...$("assertions").querySelectorAll(".assert")].map(r => ({
+				path: r.querySelector(".path").value,
+				op: r.querySelector(".op").value,
+				expected: r.querySelector(".expected").value
+			})).filter(x => x.path)
+		}
+
+		function assertionFails(raw, rules) {
+			let n = 0;
+			for(const a of rules) {
+				const v = extract(raw, a.path),
+					e = resolveConditionValue(a.expected);
+				let pass = a.op === "exists" ? v !== undefined : a.op === "contains" ? String(v ?? "").includes(e) : a.op === "equals" ? (String(v) === e || JSON.stringify(v) === e) : a.op === "not equals" ? (String(v) !== e && JSON.stringify(v) !== e) : a.op === "≥" ? Number(v) >= Number(e) : Number(v) <= Number(e);
+				if(!pass) n++
+			}
+			return n
+		}
+
+		function analyze() {
+			const base = S.results.filter(x => x.phase === "Baseline"),
+				race = S.results.filter(x => x.phase === "Race"),
+				max = +$("maxSuccess").value || 0,
+				rules = assertions();
+			let oracle = 0;
+			unique(race.map(x => x.round)).forEach(r => {
+				const rr = race.filter(x => x.round === r),
+					ss = rr.filter(ok);
+				if(ss.length > max) {
+					oracle += ss.length - max;
+					ss.forEach(x => {
+						if(!x.flag) x.flag = "MULTI-SUCCESS"
+					})
+				}
+				rr.forEach(x => {
+					if(!x.error && assertionFails(x.raw, rules)) x.flag = "ASSERTION-FAIL"
+				})
+			});
+			const vals = race.map(x => extract(x.raw, $("extractPath").value.trim())).filter(v => v !== undefined).map(String),
+				vc = new Map();
+			vals.forEach(v => vc.set(v, (vc.get(v) || 0) + 1));
+			const dup = [...vc.values()].filter(n => n > 1).reduce((a, n) => a + n, 0),
+				anomaly = oracle + dup + race.filter(x => x.flag === "ASSERTION-FAIL").length;
+			const rounds = unique(race.map(x => x.round)),
+				anomRounds = rounds.filter(r => race.some(x => x.round === r && x.flag)).length;
+			const skews = rounds.map(r => {
+				const a = race.filter(x => x.round === r && !x.error).map(x => x.launch);
+				return a.length ? Math.max(...a) - Math.min(...a) : 0
+			});
+			const lats = race.map(x => x.duration).filter(Number.isFinite),
+				bs = base.filter(ok).length,
+				rs = race.filter(ok).length;
+			let confidence = "Low";
+			if(anomaly > 0 && rs > max && bs <= max) confidence = "High";
+			else if(anomaly > 0 || unique(race.map(x => x.signature).filter(Boolean)).length > 1) confidence = "Medium";
+			S.analysis = {
+				baseSuccess: bs,
+				raceSuccess: rs,
+				anomalyCount: anomaly,
+				uniqueResponses: unique(race.map(x => x.signature).filter(Boolean)).length,
+				duplicateValues: dup,
+				maxSkew: Math.max(0, ...skews),
+				p95: percentile(lats, .95),
+				repro: rounds.length ? Math.round(anomRounds / rounds.length * 100) : 0,
+				confidence
+			};
+			render();
+		}
+		// ============================================================
+		// 12. MAIN RESULTS RENDERER
+		// ============================================================
+		function render() {
+			const a = S.analysis;
+			if(a) {
+				$("base").textContent = a.baseSuccess;
+				$("race").textContent = a.raceSuccess;
+				$("anom").textContent = a.anomalyCount;
+				$("uniq").textContent = a.uniqueResponses;
+				$("dup").textContent = a.duplicateValues;
+				$("skew").textContent = a.maxSkew.toFixed(1) + " ms";
+				$("p95").textContent = a.p95 + " ms";
+				$("repro").textContent = a.repro + "%";
+				const cls = a.confidence.toLowerCase();
+				$("verdict").className = "verdict " + cls;
+				$("verdict").innerHTML = `<div class="verdict-title">${a.confidence==="High"?"⚠ Possible race condition":a.confidence==="Medium"?"⚠ Suspicious difference":"✓ No strong race signal"}</div><div class="help">Baseline ${a.baseSuccess} allowed-status responses · Race ${a.raceSuccess} · Maximum allowed ${$("maxSuccess").value}. ${a.anomalyCount?"Configured oracle/assertion signals were observed.":"No configured invariant was violated."}</div><div class="vg"><div class="metric"><span>Baseline → Race</span><b>${a.baseSuccess} → ${a.raceSuccess}</b></div><div class="metric"><span>Reproducibility</span><b>${a.repro}%</b></div><div class="metric"><span>Launch skew</span><b>${a.maxSkew.toFixed(1)} ms</b></div><div class="metric"><span>Confidence</span><b>${a.confidence}</b></div></div>`
+			}
+			renderRows();
+			renderTimeline();
+			renderGroups();
+			drawCharts()
+		}
+
+		function escapeHtml(v) {
+			return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+		}
+
+		function highlightJsonValue(raw) {
+			try {
+				const text = JSON.stringify(JSON.parse(raw), null, 2);
+				return escapeHtml(text).replace(/(&quot;(?:\\.|[^&])*?&quot;)\s*:/g, '<span class="json-key">$1</span>:').replace(/&quot;(?:\\.|[^&])*?&quot;/g, '<span class="json-string">$&</span>').replace(/\b(true|false)\b/g, '<span class="json-bool">$1</span>').replace(/\bnull\b/g, '<span class="json-null">$&</span>').replace(/(?<![\w-])-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, '<span class="json-number">$&</span>');
+			} catch {
+				return escapeHtml(raw ?? "")
+			}
+		}
+		// ============================================================
+		// 8. VERIFICATION SNAPSHOT RESULTS
+		// ============================================================
+		function renderVerificationSnapshots() {
+			const before = S.before || [],
+				after = S.after || [];
+			const blocks = [];
+			const addBlock = (title, raw, extracted, phase) => {
+				const response = raw ?? "(no response)",
+					hasExtracted = extracted && Object.keys(extracted).length;
+				let html = `<div class="verification-result ${phase}"><strong>${escapeHtml(title)}</strong>`;
+				if(hasExtracted) {
+					html += `<div style="margin-top:8px"><strong style="font-size:10px;color:var(--muted)">EXTRACTED VALUES</strong><pre class="json-box" style="margin-top:4px">${highlightJsonValue(JSON.stringify(extracted))}</pre></div>`;
+				}
+				html += `<pre class="json-box" style="margin-top:6px">${highlightJsonValue(response)}</pre></div>`;
+				blocks.push(html);
+			};
+			before.forEach((x, i) => addBlock(`BEFORE SNAPSHOT ${i+1}`, x ?.raw || x ?.error || null, x ?.extracted, "before"));
+			after.forEach((x, i) => addBlock(`AFTER SNAPSHOT ${i+1}`, x ?.raw || x ?.error || null, x ?.extracted, "after"));
+			const el = $("snapshotOut");
+			el.classList.add("json-view");
+			el.innerHTML = blocks.length ? blocks.join("") : `<div class="notice">No snapshots.</div>`;
+		}
+
+		function renderResultAccordion(r) {
+			const raw = r ?.raw ?? r ?.response ?? r ?.error ?? "(no response)",
+				req = r ?.request || {};
+			const requestView = {
+				id: req.id ?? r ?.requestId ?? "",
+				url: req.url ?? "",
+				method: req.method ?? "",
+				credentials: req.credentials ?? "",
+				queryParams: req.queryParams || {},
+				headers: req.headers || {},
+				body: req.body ?? ""
+			};
+			let responseHtml;
+			try {
+				responseHtml = highlightJson(JSON.parse(raw))
+			} catch {
+				responseHtml = escapeHtml(raw)
+			}
+			let extractedHtml = "";
+			if(r ?.extracted && typeof r.extracted === "object" && Object.keys(r.extracted).length) {
+				extractedHtml = `<div class="accordion-section"><div class="accordion-title">EXTRACTED VALUES</div><pre>${highlightJson(r.extracted)}</pre></div>`;
+			}
+			return `<tr class="results-accordion" data-accordion-for="${escapeHtml(r?.key||"")}"><td colspan="10"><div class="accordion-panel"><div class="accordion-section"><div class="accordion-title">REQUEST PARAMETERS</div><pre>${escapeHtml(JSON.stringify(requestView,null,2))}</pre></div>${extractedHtml}<div class="accordion-section"><div class="accordion-title">RESPONSE HEADERS</div><pre>${escapeHtml(formatResponseHeaders(r?.responseHeaders))}</pre></div><div class="accordion-section"><div class="accordion-title">RESPONSE</div><pre>${responseHtml}</pre></div></div></td></tr>`;
+		}
+
+		function resultDisplayOrder(r, fallbackIndex) {
+			// Every result gets a stable logical position. The table must represent
+			// experiment structure, never HTTP completion order or insertion order.
+			if(Array.isArray(r?.displayOrder)) return [...r.displayOrder, fallbackIndex];
+			const phase = String(r?.phase || "");
+			const key = String(r?.key || "");
+			const race = key.match(/^R(\d+):(\d+)(?::S(\d+))?/);
+			if((phase === "Race" || phase === "Subsequent") && race)
+				return [2, Number(race[1]), Number(race[2]), race[3] ? Number(race[3]) : 0, fallbackIndex];
+			if(phase === "Baseline") return [1, Number(r?.id) || 0, 0, 0, fallbackIndex];
+			if(phase === "Snapshot") {
+				const m = String(r?.id || "").match(/^(before|after)-(\d+)$/i);
+				return [m && m[1].toLowerCase() === "after" ? 3 : 0, m ? Number(m[2]) : fallbackIndex, 0, 0, fallbackIndex];
+			}
+			if(phase === "Single") return [4, 0, Number(r?.id) || 0, 0, fallbackIndex];
+			if(phase === "Replay") return [5, Number(r?.round) || 0, Number(r?.id) || 0, 0, fallbackIndex];
+			return [9, fallbackIndex, 0, 0, fallbackIndex];
+		}
+
+		function renderRows() {
+			const selectedKey = S.selected ?.key;
+
+			// Render the results as a stable tree rather than a flat sorted list.
+			// A Subsequent result is attached to its target by parentRequestId, so
+			// completion/insertion order can never move it away from its parent.
+			const entries = S.results.map((r, i) => ({r, i}));
+			const children = new Map();
+			for(const entry of entries) {
+				const r = entry.r;
+				if(r.phase === "Subsequent" && r.parentRequestId) {
+					if(!children.has(r.parentRequestId)) children.set(r.parentRequestId, []);
+					children.get(r.parentRequestId).push(entry);
+				}
+			}
+			for(const list of children.values()) list.sort((a, b) => {
+				const aa = resultDisplayOrder(a.r, a.i), bb = resultDisplayOrder(b.r, b.i);
+				for(let i = 0; i < aa.length; i++) if(aa[i] !== bb[i]) return aa[i] - bb[i];
+				return a.i - b.i;
+			});
+
+			const topLevel = entries.filter(({r}) => !(r.phase === "Subsequent" && r.parentRequestId));
+			topLevel.sort((a, b) => {
+				const aa = resultDisplayOrder(a.r, a.i), bb = resultDisplayOrder(b.r, b.i);
+				for(let i = 0; i < aa.length; i++) if(aa[i] !== bb[i]) return aa[i] - bb[i];
+				return a.i - b.i;
+			});
+
+			const ordered = [];
+			const appendTree = entry => {
+				ordered.push(entry);
+				const r = entry.r;
+				for(const child of (children.get(r.requestId) || [])) appendTree(child);
+			};
+			for(const entry of topLevel) appendTree(entry);
+			// Keep any orphaned Subsequent rows visible rather than silently dropping them.
+			for(const entry of entries) if(!ordered.includes(entry)) ordered.push(entry);
+
+			let lastRaceRound = null;
+			const rendered = [];
+			for(const entry of ordered) {
+				const r = entry.r;
+				if(r.phase === "Race") {
+					const round = Number(r.round) || 0;
+					if(round !== lastRaceRound) {
+						rendered.push(`<tr class="race-round-group"><td colspan="11">Race #${round}</td></tr>`);
+						lastRaceRound = round;
+					}
+				}
+				rendered.push(entry);
+			}
+
+			$("rows").innerHTML = rendered.map(entry => {
+				if(entry.r === undefined) return entry;
+				const {r} = entry;
+				const open = S.openAccordions.has(r.key);
+				const selected = r.key === selectedKey;
+				const isSubsequentChild = r.phase === "Subsequent" && !!r.parentRequestId;
+				const rowClass = `results-row${selected?" selected":""}${r.status === "RUNNING" ? " request-running" : ""}${isSubsequentChild ? " subsequent-child" : ""}`;
+				const modeLabel = ({barrier:"Synchronized barrier", pool:"Concurrent pool", sequential:"Sequential", concurrent:"Concurrent"}[String(r.mode || "").toLowerCase()] || r.mode || "");
+				const phaseHtml = modeLabel && (r.phase === "Race" || r.phase === "Subsequent") ? `${escapeHtml(r.phase)} <span class="result-mode">${escapeHtml(modeLabel)}</span>` : escapeHtml(r.phase);
+				return `<tr class="${rowClass}" data-k="${escapeHtml(r.key||"")}"><td class="toggle-cell">${open?"▾":"▸"}</td><td>${phaseHtml}</td><td>${r.round||"—"}</td><td>${r.id}</td><td class="mono" title="${escapeHtml(r.requestId||"")}">${escapeHtml((r.requestId||"").slice(0,8))}</td><td class="${ok(r)?"ok":r.error?"bad":"warn"}">${r.status||"—"}</td><td>${Number.isFinite(r.launch)?r.launch.toFixed(1):"—"}</td><td>${r.duration??"—"} ms</td><td>${r.size??"—"}</td><td>${r.signature||"—"}</td><td class="${r.flag?"warn":""}">${r.flag||""}</td></tr>${open?renderResultAccordion(r):""}`;
+			}).join("");
+			$("rows").querySelectorAll("tr.results-row").forEach(t => t.onclick = () => {
+				const r = S.results.find(x => x.key === t.dataset.k);
+				if(!r) return;
+				if(S.openAccordions.has(r.key)) {
+					S.openAccordions.delete(r.key)
+				} else {
+					S.openAccordions.add(r.key)
+				}
+				S.selected = r;
+				$("replayDetail").disabled = !r.request;
+				renderRows();
+				renderSelectedResponse(r);
+			});
+		}
+
+		function escapeHtml(v) {
+			return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+		}
+
+		function highlightJson(value) {
+			const text = JSON.stringify(value, null, 2);
+			return escapeHtml(text).replace(/(&quot;(?:\\\\.|[^&])*?&quot;)\s*:/g, '<span class="json-key">$1</span>:').replace(/&quot;(?:\\\\.|[^&])*?&quot;/g, '<span class="json-string">$&</span>').replace(/\b(true|false)\b/g, '<span class="json-bool">$1</span>').replace(/\bnull\b/g, '<span class="json-null">$1</span>').replace(/(?<![\w-])-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, '<span class="json-number">$&</span>')
+		}
+		// ============================================================
+		// 14. REQUEST REPLAY
+		// ============================================================
+		async function replaySelected() {
+			const r = S.selected,
+				btn = $("replayDetail");
+			if(!r ?.request || S.running) return;
+			const q = r.request;
+			btn.disabled = true;
+			btn.textContent = "↻ Replaying…";
+			try {
+				const c = {
+					url: q.url,
+					method: q.method,
+					credentials: q.credentials || "omit",
+					headers: {...(q.headers || {})
+					},
+					timeout: Math.max(100, +$("timeout").value || 15000),
+					capture: "full"
+				};
+				const replay = await request(c, {
+					phase: "Replay",
+					round: r.round || 0,
+					id: r.id || 1,
+					key: "REPLAY:" + Date.now(),
+					launch: performance.now(),
+					replayOf: r.key
+				}, q.body ?? "");
+				storeResult(replay);
+				S.selected = replay;
+				renderRows();
+				renderSelectedResponse(replay);
+			} finally {
+				btn.disabled = !S.selected ?.request;
+				btn.textContent = "↻ Replay";
+			}
+		}
+		// ============================================================
+		// 13. SELECTED REQUEST / RESPONSE INSPECTOR
+		// ============================================================
+		function formatResponseHeaders(headers) {
+			return Object.entries(headers || {}).map(([k, v]) => `${k}: ${v}`).join("\n") || "(no response headers)"
+		}
+
+		function renderSelectedResponse(r) {
+			const el = $("detail");
+			if(!r) {
+				el.textContent = "(no response)";
+				return
+			}
+			const raw = r.raw ?? r.response ?? r.error ?? "(no response)",
+				req = r.request || {};
+			const requestView = {
+				id: req.id ?? r.requestId ?? "",
+				url: req.url ?? "",
+				method: req.method ?? "",
+				credentials: req.credentials ?? "",
+				queryParams: req.queryParams || {},
+				headers: req.headers || {},
+				body: req.body ?? ""
+			};
+			let responseHtml;
+			try {
+				const parsed = JSON.parse(raw);
+				responseHtml = highlightJson(parsed)
+			} catch {
+				responseHtml = escapeHtml(raw)
+			}
+			el.classList.add("json-view");
+			el.innerHTML = `<div style="margin-bottom:12px"><strong>REQUEST PARAMETERS</strong><pre style="margin-top:6px">${escapeHtml(JSON.stringify(requestView,null,2))}</pre></div><div class="accordion-section"><div class="accordion-title">RESPONSE HEADERS</div><pre>${escapeHtml(formatResponseHeaders(r.responseHeaders))}</pre></div><div style="margin-top:12px"><strong>RESPONSE</strong><pre style="margin-top:6px">${responseHtml}</pre></div>`;
+		}
+
+		function renderTimeline() {
+			const box = $("timeline"), now = performance.now();
+
+			// Build the timeline from the actual Race roots first. Subsequent
+			// requests are attached to their parent target and use the same
+			// time coordinate system. This avoids a child being rendered as a
+			// second top-level item or being positioned against an unrelated
+			// request's time range.
+			const all = S.results.filter(x =>
+				(x.phase === "Race" || x.phase === "Subsequent") &&
+				!x.error && Number.isFinite(x.launch)
+			);
+
+			const roots = all.filter(x => x.phase === "Race");
+			if(!roots.length) {
+				box.innerHTML = '<div class="notice">Run an experiment to populate the timeline.</div>';
+				return
+			}
+
+			const rootById = new Map();
+			for(const r of roots) {
+				const id = r.requestId || r.key;
+				if(id && !rootById.has(id)) rootById.set(id, r);
+			}
+
+			// Deduplicate by logical request identity, not merely by object
+			// reference. This is important because a target keeps its child
+			// results for inspection while the global result list also contains
+			// those same request results.
+			const seen = new Set(), children = [];
+			for(const x of all) {
+				const parent = x.phase === "Subsequent" ? rootById.get(x.parentRequestId) : null;
+				if(x.phase === "Subsequent" && !parent) continue;
+				const identity = x.phase === "Subsequent"
+					? `S:${x.parentRequestId}:${x.subsequentIndex}:${x.requestId || x.key || ""}`
+					: `R:${x.requestId || x.key || `${x.round}:${x.id}`}`;
+				if(seen.has(identity)) continue;
+				seen.add(identity);
+				if(x.phase === "Subsequent") children.push({x, parent});
+			}
+
+			const items = roots.filter(x => {
+				const id = x.requestId || x.key || `${x.round}:${x.id}`;
+				return seen.has(`R:${id}`);
+			}).map(x => ({x, end: Number.isFinite(x.duration) ? x.launch + x.duration : now, child:false}));
+
+			for(const {x, parent} of children) {
+				items.push({
+					x,
+					parent,
+					end: Number.isFinite(x.duration) ? x.launch + x.duration : now,
+					child:true
+				});
+			}
+
+			const min = Math.min(...items.map(v => v.x.launch));
+			const max = Math.max(...items.map(v => v.end), now);
+			const span = Math.max(1, max - min);
+
+			const rootOrder = x => Array.isArray(x.displayOrder)
+				? x.displayOrder
+				: [2, Number(x.round) || 0, Number(x.targetIndex ?? x.id) || 0, 0];
+
+			items.sort((a,b) => {
+				const ao = rootOrder(a.parent || a.x), bo = rootOrder(b.parent || b.x);
+				for(let i=0; i<ao.length; i++) {
+					const av = Number(ao[i]) || 0, bv = Number(bo[i]) || 0;
+					if(av !== bv) return av - bv;
+				}
+				if(a.child !== b.child) return a.child ? 1 : -1;
+				if(a.child && b.child) return (a.x.subsequentIndex || 0) - (b.x.subsequentIndex || 0);
+				return a.x.launch - b.x.launch;
+			});
+
+			box.innerHTML = items.map(({x, end, child}) => {
+				const running = x.status === "RUNNING" || !Number.isFinite(x.duration);
+				const duration = Math.max(0, end - x.launch);
+				const left = Math.max(0, Math.min(100, ((x.launch - min) / span) * 100));
+				const right = Math.max(left, Math.min(100, ((end - min) / span) * 100));
+				const width = Math.max(0.4, Math.min(100 - left, right - left));
+				const label = child ? `↳ S${x.subsequentIndex || ""}` : `R${x.round} #${x.id}`;
+				const selected = S.selected && S.selected.key === x.key;
+				return `<div class="trow clickable${child ? " subsequent" : ""}${selected ? " timeline-selected" : ""}" data-result-key="${escapeHtml(x.key || "")}" title="Click to focus this request in Request Results"><span class="tid">${label}</span><div class="track"><i class="barline ${x.flag ? "flag" : ""}${running ? " running" : ""}" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%"></i></div></div>`
+			}).join("");
+
+			box.querySelectorAll(".trow.clickable").forEach(row => row.onclick = () => {
+				const key = row.dataset.resultKey;
+				const result = S.results.find(r => r.key === key);
+				if(!result) return;
+				S.selected = result;
+				$("replayDetail").disabled = !result.request;
+				renderRows();
+				renderSelectedResponse(result);
+				const target = [...$("rows").querySelectorAll("tr.results-row")].find(r => r.dataset.k === key);
+				if(target) {
+					target.scrollIntoView({behavior:"smooth", block:"center"});
+					setTimeout(() => {
+						if(S.selected === result) target.classList.add("selected");
+					}, 0);
+				}
+			});
+		}
+
+		function renderGroups() {
+			const box = $("groups"),
+				m = new Map(),
+				race = S.results.filter(x => x.phase === "Race");
+			race.forEach(x => {
+				const k = x.signature || "ERROR: " + (x.error || "unknown");
+				if(!m.has(k)) m.set(k, []);
+				m.get(k).push(x)
+			});
+			if(!m.size) {
+				box.innerHTML = '<div class="notice">Run an experiment to group response signatures.</div>';
+				return
+			}
+			box.innerHTML = [...m].sort((a, b) => b[1].length - a[1].length).map(([sig, a], i) => {
+				const gid = "g" + i;
+				return `<div class="group" data-group="${gid}" data-keys="${a.map(x=>encodeURIComponent(x.key)).join(",")}"><b>${a.length}</b><span class="mono">${sig}</span><div class="help">status: ${unique(a.map(x=>x.status||"ERR")).join(", ")} · rounds: ${unique(a.map(x=>x.round)).join(", ")} · requests: ${a.slice(0,15).map(x=>x.id).join(", ")}${a.length>15?" …":""}</div></div>`;
+			}).join("");
+			box.querySelectorAll(".group").forEach(g => g.onclick = () => {
+				const keys = new Set((g.dataset.keys || "").split(",").filter(Boolean).map(decodeURIComponent));
+				box.querySelectorAll(".group").forEach(x => x.classList.remove("selected"));
+				g.classList.add("selected");
+				$("rows").querySelectorAll("tr").forEach(row => row.classList.toggle("highlight", keys.has(row.dataset.k)));
+				const first = $("rows").querySelector("tr.highlight");
+				if(first) first.scrollIntoView({
+					behavior: "smooth",
+					block: "nearest"
+				});
+			});
+		}
+
+		function setupCanvas(id) {
+			const c = typeof id === "string" ? $(id) : id,
+				r = c.getBoundingClientRect(),
+				d = devicePixelRatio || 1;
+			c.width = Math.max(1, r.width * d);
+			c.height = Math.max(1, r.height * d);
+			const x = c.getContext("2d");
+			x.setTransform(d, 0, 0, d, 0, 0);
+			return [x, r.width, r.height]
+		}
+
+		function drawCharts() {
+			drawDist();
+			drawRaceChart();
+			drawLastVariableCharts()
+		}
+
+		function lastVariableHistoryRows() {
+			const rows = V.lastHistory || [], names = new Set();
+			rows.forEach(e => Object.keys(e.values || {}).forEach(n => names.add(n)));
+			return {rows, names: [...names].sort()}
+		}
+
+		function drawLastVariableCharts() {
+			const box = $("lastVariableCharts"), card = $("lastVariableProgressCard");
+			if(!box || !card) return;
+			const {rows, names} = lastVariableHistoryRows();
+			const numericNames = names.filter(name => rows.some(e => Number.isFinite(Number(e.values?.[name]))));
+			card.classList.toggle("hidden", numericNames.length === 0);
+			if(!numericNames.length) { box.innerHTML = ""; return; }
+			const existing = new Map([...box.querySelectorAll(".last-var-chart")].map(x => [x.dataset.name, x]));
+			box.innerHTML = "";
+			numericNames.forEach(name => {
+				let wrap = existing.get(name);
+				if(!wrap) {
+					wrap = document.createElement("div");
+					wrap.className = "chartbox last-var-chart";
+					wrap.dataset.name = name;
+					const title = document.createElement("div");
+					title.style.cssText = "position:absolute;left:12px;top:9px;z-index:1;font:700 10px ui-monospace,monospace;color:#cbd5df";
+					title.textContent = "{{last." + name + "}}";
+					const canvas = document.createElement("canvas");
+					wrap.append(title, canvas);
+				}
+				box.appendChild(wrap);
+				const canvas = wrap.querySelector("canvas");
+				const [c,w,h] = setupCanvas(canvas);
+				const points = rows.map((e, index) => {
+					const raw = e.values?.[name], value = Number(raw);
+					return Number.isFinite(value) ? {index, value, label: e.phase === "Race" ? `R${e.round} #${e.id}` : e.phase === "Subsequent" ? `${e.id}` : e.id ? `${e.phase} ${e.id}` : e.phase} : null
+				}).filter(Boolean);
+				c.clearRect(0,0,w,h);
+				const p={l:46,r:12,t:28,b:30}, iw=Math.max(1,w-p.l-p.r), ih=Math.max(1,h-p.t-p.b);
+				c.strokeStyle="#27313d"; c.strokeRect(p.l,p.t,iw,ih);
+				if(!points.length) return;
+				let min=Math.min(...points.map(p=>p.value)), max=Math.max(...points.map(p=>p.value));
+				if(min===max){ const pad=Math.max(1,Math.abs(min)*.05); min-=pad; max+=pad; }
+				const xFor = i => p.l + (rows.length <= 1 ? iw/2 : i/(rows.length-1)*iw);
+				const yFor = v => h-p.b-(v-min)/(max-min)*ih;
+				c.strokeStyle="#58a6ff"; c.lineWidth=1.6; c.beginPath();
+				points.forEach((pt,i) => { const px=xFor(pt.index), py=yFor(pt.value); i ? c.lineTo(px,py) : c.moveTo(px,py); });
+				c.stroke();
+				c.fillStyle="#58a6ff";
+				points.forEach(pt => { c.beginPath(); c.arc(xFor(pt.index),yFor(pt.value),2.6,0,Math.PI*2); c.fill(); });
+				c.fillStyle="#8995a4"; c.font="9px system-ui";
+				c.fillText(String(Math.round(max*100)/100),4,p.t+4); c.fillText(String(Math.round(min*100)/100),4,h-p.b+4);
+				const first=points[0], last=points[points.length-1];
+				c.fillText(first.label || "",p.l,h-8); if(last!==first) c.fillText(last.label || "",Math.max(p.l,w-p.r-70),h-8);
+			});
+		}
+
+		function drawDist() {
+			const v = S.results.filter(x => x.phase === "Race" && Number.isFinite(x.duration)).map(x => x.duration),
+				e = $("distEmpty");
+			e.classList.toggle("hidden", v.length > 0);
+			if(!v.length) return;
+			const [c, w, h] = setupCanvas("dist"), p = {
+				l: 38,
+				r: 10,
+				t: 12,
+				b: 28
+			}, iw = w - p.l - p.r, ih = h - p.t - p.b, bins = Math.min(18, Math.max(6, Math.ceil(Math.sqrt(v.length)))), min = Math.min(...v), max = Math.max(...v), step = (max - min || 1) / bins, counts = Array(bins).fill(0);
+			v.forEach(x => counts[Math.min(bins - 1, Math.floor((x - min) / step))]++);
+			const peak = Math.max(...counts);
+			c.clearRect(0, 0, w, h);
+			c.strokeStyle = "#27313d";
+			c.strokeRect(p.l, p.t, iw, ih);
+			counts.forEach((n, i) => {
+				const bw = iw / bins * .78,
+					x = p.l + i * iw / bins + iw / bins * .11,
+					y = h - p.b - n / peak * ih;
+				c.fillStyle = "#58a6ff";
+				c.fillRect(x, y, bw, n / peak * ih)
+			});
+			c.fillStyle = "#8995a4";
+			c.font = "10px system-ui";
+			c.fillText(Math.round(min) + " ms", p.l, h - 8);
+			c.fillText(Math.round(max) + " ms", w - p.r - 45, h - 8)
+		}
+
+		function drawRaceChart() {
+			const v = S.results.filter(x => x.phase === "Race" && Number.isFinite(x.duration)).sort((a, b) => (a.round - b.round) || (a.id - b.id)),
+				e = $("raceEmpty");
+			e.classList.toggle("hidden", v.length > 0);
+			if(!v.length) return;
+			const [c, w, h] = setupCanvas("raceChart"), p = {
+				l: 42,
+				r: 10,
+				t: 12,
+				b: 28
+			}, iw = w - p.l - p.r, ih = h - p.t - p.b, max = Math.max(...v.map(x => x.duration), 1), step = iw / Math.max(1, v.length - 1);
+			c.clearRect(0, 0, w, h);
+			c.strokeStyle = "#27313d";
+			c.strokeRect(p.l, p.t, iw, ih);
+			c.strokeStyle = "#58a6ff";
+			c.beginPath();
+			v.forEach((x, i) => {
+				const px = p.l + i * step,
+					py = h - p.b - x.duration / max * ih;
+				i ? c.lineTo(px, py) : c.moveTo(px, py)
+			});
+			c.stroke();
+			v.forEach((x, i) => {
+				const px = p.l + i * step,
+					py = h - p.b - x.duration / max * ih;
+				c.fillStyle = x.flag ? "#f85149" : "#58a6ff";
+				c.beginPath();
+				c.arc(px, py, 2.5, 0, 7);
+				c.fill()
+			});
+			c.fillStyle = "#8995a4";
+			c.font = "10px system-ui";
+			c.fillText("0 ms", 5, h - p.b + 3);
+			c.fillText(Math.round(max) + " ms", 2, p.t + 3);
+			c.fillText("Request order", w / 2 - 28, h - 8)
+		}
+		// ============================================================
+		// 15. SINGLE REQUEST MODE
+		// ============================================================
+		async function sendSingle() {
+			if(S.running) return;
+			const c = config(),
+				btn = $("sendSingle");
+			btn.disabled = true;
+			try {
+				syncGlobalVars();
+				if(!evaluateConditions(c.targetConditions)) {
+					const skipped = {
+						phase: "Single",
+						round: 0,
+						id: 1,
+						key: "SINGLE:SKIP:" + Date.now(),
+						status: "SKIPPED",
+						flag: "CONDITION-FALSE",
+						conditions: c.targetConditions,
+						condition: conditionSummary(c.targetConditions),
+						request: {
+							url: c.url,
+							method: c.method,
+							credentials: c.credentials,
+							headers: hdrs(c.headersTemplate),
+							body: c.body
+						}
+					};
+					S.results = S.results.filter(x => x.phase !== "Single");
+					storeResult(skipped);
+					renderRows();
+					renderSelectedResponse(skipped);
+					return;
+				}
+				const r = await executeTarget(c, {
+					phase: "Single",
+					round: 0,
+					id: 1,
+					key: "SINGLE:" + Date.now(),
+					launch: performance.now()
+				}, 1);
+				S.results = S.results.filter(x => x.phase !== "Single" && x.phase !== "Subsequent");
+				// The request executor already owns the live/result rows.
+				renderRows();
+				renderSelectedResponse(r);
+			} finally {
+				btn.disabled = false
+			}
+		}
+
+		function clearRunState() {
+			S.results = [];
+			S.analysis = null;
+			S.before = [];
+			S.after = null;
+			S.selected = null;
+			S.aborters = [];
+			V.before = {};
+			V.after = {};
+			V.last = null;
+			V.lastHistory = [];
+			renderLastLiveVariables();
+			S.requestProgress = {active:false, executed:0, total:0};
+			drawLastVariableCharts();
+			setProgress(0);
+			$("rows").innerHTML = "";
+			$("timeline").innerHTML = '<div class="notice">Run an experiment to populate the timeline.</div>';
+			$("groups").innerHTML = '<div class="notice">Run an experiment to group response signatures.</div>';
+			$("snapshotOut").textContent = "No snapshots.";
+			$("detail").textContent = "Click a result row.";
+			$("detail").classList.remove("json-view");
+			$("replayDetail").disabled = true;
+			$("base").textContent = "—";
+			$("race").textContent = "—";
+			$("anom").textContent = "—";
+			$("uniq").textContent = "—";
+			$("dup").textContent = "—";
+			$("skew").textContent = "—";
+			$("p95").textContent = "—";
+			$("repro").textContent = "—";
+			$("verdict").className = "verdict";
+			$("verdict").innerHTML = '<div class="verdict-title">Ready</div><div class="help">Run an experiment to compare sequential baseline behavior with concurrent race behavior.</div>';
+			["dist", "raceChart"].forEach(id => {
+				const c = $(id),
+					x = c.getContext("2d");
+				if(x) x.clearRect(0, 0, c.width, c.height)
+			});
+			$("distEmpty").classList.remove("hidden");
+			$("raceEmpty").classList.remove("hidden");
+		}
+		// ============================================================
+		// 11. COMPLETE EXPERIMENT PIPELINE
+		// ============================================================
+		async function runExperiment() {
+			if(S.running) return;
+			clearRunState();
+			setRunning(true);
+			S.aborters = [];
+			setProgress(0);
+			const c = config();
+			initRequestProgress(c);
+			try {
+				const beforeCfgs = beforeSnapshotConfigs();
+				S.openAccordions.clear();
+				S.before = [];
+				for(let i = 0; i < beforeCfgs.length && S.running; i++) {
+					const sc = {...beforeCfgs[i], label: "before-" + (i + 1)
+					};
+					if(!evaluateConditions(sc.conditions)) {
+						S.before.push({
+							phase: "Snapshot",
+							id: sc.label,
+							key: "SKIP:" + sc.label + ":" + Date.now(),
+							status: "SKIPPED",
+							flag: "CONDITION-FALSE",
+							conditions: sc.conditions,
+							condition: conditionSummary(sc.conditions),
+							request: {
+								id: "",
+								url: sc.url,
+								method: sc.method,
+								credentials: c.credentials,
+								headers: {},
+								queryParams: {},
+								body: sc.body
+							}
+						});
+						continue
+					}
+					if(sc.delay) await sleep(sc.delay);
+					if(!S.running) break;
+					const r = await snapshotConfig(sc, c);
+					if(sc.expected && !r.raw ?.includes(sc.expected)) r.flag = "EXPECTED-FRAGMENT-MISSING";
+					const namespace = {};
+					const seen = new Set();
+					for(const ex of sc.extractors || []) {
+						if(seen.has(ex.name)) continue;
+						seen.add(ex.name);
+						namespace[ex.name] = extractValue(r.raw, ex)
+					}
+					if(Object.keys(namespace).length) r.extracted = namespace;
+					V.before[`before${i+1}`] = namespace;
+					setLastVerificationNamespace(namespace, r);
+					checkGlobalStopCondition(c, r);
+					if(!S.running) break;
+					S.before.push(r)
+				}
+				const b = await baseline(c);
+				if(c.enableBaseline) setProgress(25);
+				for(let r = 1; r <= c.rounds && S.running && c.enableRace; r++) {
+					if(!evaluateConditions(c.raceConditions)) {
+						storeResult({
+							phase: "Race",
+							round: r,
+							id: "—",
+							key: "SKIP:R" + r + ":" + Date.now(),
+							displayOrder: [2, r, Number.MAX_SAFE_INTEGER, 0],
+							status: "SKIPPED",
+							flag: "CONDITION-FALSE",
+							conditions: c.raceConditions,
+							condition: conditionSummary(c.raceConditions),
+							request: {
+								id: "",
+								url: c.url,
+								method: c.method,
+								credentials: c.credentials,
+								headers: {...c.headers
+								},
+								queryParams: {},
+								body: c.body
+							}
+						});
+						setProgress(25 + r / c.rounds * 65);
+						if(r < c.rounds) await sleep(c.delay);
+						continue
+					}
+					const rr = await race(c, r);
+					setProgress(25 + r / c.rounds * 65);
+					if(r < c.rounds) await sleep(c.delay)
+				}
+				await runAfterSnapshots(c);
+				renderVerificationSnapshots();
+				analyze();
+				setProgress(100)
+			} catch(e) {
+				$("detail").textContent = "EXPERIMENT ERROR\\n\\n" + (e.stack || e.message || e)
+			} finally {
+				stop()
+			}
+		}
+
+		function setRunning(v) {
+			S.running = v;
+			$("run").disabled = v;
+			$("stop").disabled = !v;
+			if(v) {
+				renderTimeline();
+				if(!timelineLiveTimer) timelineLiveTimer = setInterval(renderTimeline, 100)
+			} else if(timelineLiveTimer) {
+				clearInterval(timelineLiveTimer);
+				timelineLiveTimer = null
+				renderTimeline()
+			}
+		}
+
+		function addAssertion(d = {
+			path: "$.success",
+			op: "equals",
+			expected: "true"
+		}) {
+			const r = document.createElement("div");
+			r.className = "assert";
+			r.innerHTML = '<input class="path" placeholder="$.success"><select class="op"><option>equals</option><option>not equals</option><option>exists</option><option>≥</option><option>≤</option><option>contains</option></select><input class="expected" placeholder="{{before1.value}} or expected"><button type="button">×</button>';
+			r.querySelector(".path").value = d.path;
+			r.querySelector(".op").value = d.op;
+			r.querySelector(".expected").value = d.expected;
+			r.querySelector("button").onclick = () => r.remove();
+			$("assertions").appendChild(r)
+		}
+
+		function experiment() {
+			syncGlobalVars();
+			return {
+				version: 15,
+				config: {
+					testName: $('testName').value,
+					url: $("url").value,
+					method: $("method").value,
+					credentials: $("credentials").value,
+					headers: $("headers").value,
+					body: $("body").value,
+					count: $("count").value,
+					rounds: $("rounds").value,
+					concurrency: $("concurrency").value,
+					spread: $("spread").value,
+					timeout: $("timeout").value,
+					roundDelay: $("roundDelay").value,
+					dispatch: $("dispatch").value,
+					capture: $("capture").value,
+					fresh: $("fresh").checked,
+					enableBaseline: $("enableBaseline").checked,
+					enableRace: $("enableRace").checked,
+					successCodes: $("successCodes").value,
+					maxSuccess: $("maxSuccess").value,
+					extractPath: $("extractPath").value,
+					countDelta: $("countDelta").value,
+					globalVariables: S.globalVars,
+					targetConditions: conditionRows($("targetConditions")),
+					targetExtractors: config().targetExtractors,
+					targetSubsequentRequests: targetSubsequentRequestConfigs(),
+					globalStopConditionEnabled: $("enableGlobalStopCondition").checked,
+					globalStopConditions: conditionRows($("globalStopConditions")),
+					beforeSnapshots: beforeSnapshotConfigs(),
+					afterSnapshots: afterSnapshotConfigs(),
+					verifyHeaders: $("verifyHeaders").value,
+					assertions: assertions()
+				}
+			}
+		}
+		$("storeCurrent").onclick = () => {
+			try {
+				const exp = experiment(), now = new Date().toISOString();
+				const name = storedExperimentName(exp.config?.testName);
+				const list = readStoredExperiments();
+				const id = (crypto.randomUUID && crypto.randomUUID()) || uuid();
+				list.unshift({id, name, storedAt: now, experiment: exp});
+				writeStoredExperiments(list);
+				renderStoredExperiments(id);
+			} catch(e) {
+				alert(e.message || String(e))
+			}
+		};
+		$("storedExperiments").onchange = () => {
+			const has = !!$("storedExperiments").value;
+			$("useStored").disabled = !has;
+			$("deleteStored").disabled = !has
+		};
+		$("useStored").onclick = () => {
+			const item = selectedStoredExperiment();
+			if(!item) return;
+			try {
+				stop();
+				applyExperimentConfig(item.experiment?.config || item.experiment);
+				S.selected = null;
+				alert(`Stored experiment loaded: ${item.name}`);
+			} catch(e) {
+				alert(e.message || String(e))
+			}
+		};
+		$("deleteStored").onclick = () => {
+			const item = selectedStoredExperiment();
+			if(!item) return;
+			if(!confirm(`Delete stored experiment "${item.name}"?`)) return;
+			const list = readStoredExperiments().filter(x => x.id !== item.id);
+			try { writeStoredExperiments(list); } catch(e) { alert(e.message || String(e)); }
+		};
+		$("exportCollection").onclick = () => {
+			const list = readStoredExperiments();
+			if(!list.length) { alert("No stored experiments to export."); return; }
+			const payload = {
+				version: 1,
+				type: "RaceLab experiment collection",
+				exportedAt: new Date().toISOString(),
+				experiments: list
+			};
+			const a = document.createElement("a");
+			a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"}));
+			a.download = "RaceLab-experiment-collection.json";
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+		};
+		$("importCollection").onclick = () => $("collectionFile").click();
+		$("collectionFile").onchange = async e => {
+			try {
+				const f = e.target.files[0];
+				if(!f) return;
+				const d = JSON.parse(await f.text());
+				if(d?.type !== "RaceLab experiment collection" || !Array.isArray(d.experiments)) throw new Error("This file is not a valid RaceLab experiment collection.");
+				const imported = d.experiments.filter(x => x && typeof x === "object" && x.experiment && x.experiment.config);
+				if(imported.length !== d.experiments.length) throw new Error("The collection contains an invalid experiment entry.");
+				if(!confirm(`Replace the current stored collection with ${imported.length} imported experiment${imported.length === 1 ? "" : "s"}?`)) return;
+				const normalized = imported.map(x => ({
+					id: String(x.id || ((crypto.randomUUID && crypto.randomUUID()) || uuid())),
+					name: storedExperimentName(x.name || x.experiment?.config?.testName),
+					storedAt: x.storedAt || new Date().toISOString(),
+					experiment: x.experiment
+				}));
+				writeStoredExperiments(normalized);
+				renderStoredExperiments(normalized[0]?.id || "");
+			} catch(e) {
+				alert(e.message || String(e))
+			} finally {
+				e.target.value = ""
+			}
+		};
+		renderStoredExperiments();
+
+		$("addGlobalVar").onclick = () => addGlobalVar();
+		$("addTargetCondition").onclick = () => addConditionRow($("targetConditions"));
+		$("addTargetExtractor").onclick = () => addTargetExtractor({}, `value${(document.querySelector(".targetExtractors")?.querySelectorAll(".extractor").length||0)+1}`);
+		$("addTargetSubsequent").onclick = () => addTargetSubsequentRequest();
+		$("addRaceCondition").onclick = () => addConditionRow($("raceConditions"));
+		$("addGlobalStopCondition").onclick = () => addConditionRow($("globalStopConditions"));
+		$("targetToggle").onclick = () => {
+			const body = $("targetRequestBody"),
+				card = $("targetToggle").closest(".target-request-card"),
+				hidden = body.hasAttribute("hidden");
+			body.toggleAttribute("hidden", !hidden);
+			card.classList.toggle("snapshotCollapsed", !hidden);
+			$("targetToggle").textContent = hidden ? "▾" : "▸";
+			$("targetToggle").title = hidden ? "Collapse request" : "Expand request"
+		};
+		$("replayDetail").onclick = replaySelected;
+		$("copyDetail").onclick = async() => {
+			const el = $("detail"),
+				text = el.textContent || "";
+			if(!text || text === "Click a result row.") return;
+			try {
+				await navigator.clipboard.writeText(text);
+				const b = $("copyDetail"),
+					old = b.textContent;
+				b.textContent = "Copied ✓";
+				setTimeout(() => b.textContent = old, 1200)
+			} catch(e) {
+				const ta = document.createElement("textarea");
+				ta.value = text;
+				document.body.appendChild(ta);
+				ta.select();
+				document.execCommand("copy");
+				ta.remove();
+				const b = $("copyDetail"),
+					old = b.textContent;
+				b.textContent = "Copied ✓";
+				setTimeout(() => b.textContent = old, 1200)
+			}
+		};
+		const resultsCard = $("requestResultsCard"),
+			resultsFs = $("resultsFullscreen");
+		let resultsBackdrop = null;
+
+		function toggleResultsFullscreen() {
+			const on = resultsCard.classList.toggle("results-card-fullscreen");
+			if(on) {
+				resultsFs.textContent = "✕ Exit fullscreen";
+				resultsFs.title = "Exit fullscreen";
+				resultsBackdrop = document.createElement("div");
+				resultsBackdrop.className = "results-fullscreen-backdrop";
+				resultsBackdrop.onclick = toggleResultsFullscreen;
+				document.body.appendChild(resultsBackdrop);
+				document.body.style.overflow = "hidden"
+			} else {
+				resultsFs.textContent = "⛶ Fullscreen";
+				resultsFs.title = "Toggle fullscreen";
+				if(resultsBackdrop) {
+					resultsBackdrop.remove();
+					resultsBackdrop = null
+				}
+				document.body.style.overflow = ""
+			}
+		}
+		resultsFs.onclick = toggleResultsFullscreen;
+		$("collapseAllResults").onclick = () => {
+			S.openAccordions.clear();
+			S.selected = null;
+			$("replayDetail").disabled = true;
+			renderRows();
+		};
+		$("addBeforeSnapshot").onclick = () => addBeforeSnapshot();
+		initResultLimit();
+		addBeforeSnapshot();
+		$("addAfterSnapshot").onclick = () => addAfterSnapshot();
+		addAfterSnapshot();
+		$("run").onclick = runExperiment;
+		$("sendSingle").onclick = sendSingle;
+		$("stop").onclick = stop;
+		$("addAssert").onclick = () => addAssertion();
+		$("clear").onclick = () => {
+			stop();
+			clearRunState();
+			$("targetSubsequentRequests").innerHTML = "";
+			$("beforeSnapshots").innerHTML = "";
+			addBeforeSnapshot();
+			$("afterSnapshots").innerHTML = "";
+			addAfterSnapshot();
+			$("raceConditions").innerHTML = "";
+			$("targetConditions").innerHTML = "";
+			S.selected = null;
+			$("replayDetail").disabled = true;
+			render();
+			$("detail").textContent = "Click a result row.";
+			$("snapshotOut").textContent = "No snapshots.";
+			setProgress(0)
+		};
+		$("saveResults").onclick = () => {
+			if(!S.results.length) {
+				alert("No experiment results to save.");
+				return
+			}
+			const name = ($('testName').value.trim() || "RaceLab experiment").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").replace(/\s+/g, " ").replace(/[. ]+$/g, "");
+			const payload = {
+				version: 1,
+				type: "RaceLab experiment results",
+				testName: $('testName').value.trim() || "RaceLab experiment",
+				savedAt: new Date().toISOString(),
+				experiment: experiment(),
+				results: S.results,
+				before: S.before || [],
+				after: S.after || [],
+				analysis: S.analysis || null
+			};
+			const a = document.createElement("a");
+			a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
+				type: "application/json"
+			}));
+			a.download = (name || "RaceLab experiment") + "-results.json";
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+		};
+		$("loadResults").onclick = () => $("resultsFile").click();
+		$("resultsFile").onchange = async e => {
+			try {
+				const f = e.target.files[0];
+				if(!f) return;
+				const d = JSON.parse(await f.text());
+				const r = d.results || d.raceResults || d.data;
+				if(!Array.isArray(r)) throw new Error("This file does not contain RaceLab experiment results.");
+				stop();
+				if(d.testName) $('testName').value = d.testName;
+				if(d.experiment ?.config) {
+					const c = d.experiment.config;
+					Object.entries(c).forEach(([k, v]) => {
+						const el = $(k);
+						if(el && k !== "assertions" && k !== "beforeSnapshots" && k !== "afterSnapshots") el.type === "checkbox" ? el.checked = !!v : el.value = v
+					})
+				}
+				S.results = r;
+				trimStoredResults();
+				S.before = Array.isArray(d.before) ? d.before : [];
+				S.after = Array.isArray(d.after) ? d.after : [];
+				S.analysis = d.analysis || null;
+				S.selected = null;
+				$('replayDetail').disabled = true;
+				renderRows();
+				renderTimeline();
+				renderGroups();
+				renderVerificationSnapshots();
+				analyze();
+				setProgress(100);
+			} catch(x) {
+				alert(x.message || String(x))
+			} finally {
+				e.target.value = ""
+			}
+		};
+		function applyExperimentConfig(c) {
+			Object.entries(c || {}).forEach(([k, v]) => {
+				const el = $(k);
+				if(el && k !== "assertions" && k !== "globalVariables" && k !== "beforeSnapshots" && k !== "afterSnapshots" && k !== "targetConditions" && k !== "targetExtractors" && k !== "targetSubsequentRequests" && k !== "raceConditions") {
+					if(el.type === "checkbox") el.checked = !!v;
+					else el.value = v
+				}
+			});
+			S.globalVars = Array.isArray(c?.globalVariables) ? c.globalVariables.map(x => ({name:String(x.name || ""), value:String(x.value ?? "")})) : [];
+			$("globalVars").innerHTML = "";
+			S.globalVars.forEach(addGlobalVar);
+			$("targetConditions").innerHTML = "";
+			(c?.targetConditions || []).forEach(x => addConditionRow($("targetConditions"), x));
+			document.querySelector(".targetExtractors").innerHTML = "";
+			(c?.targetExtractors || []).forEach((x, j) => addTargetExtractor(x, x.name || `value${j+1}`));
+			$("targetSubsequentRequests").innerHTML = "";
+			const subsequentRequests = c?.targetSubsequentRequests || [];
+			const importedSubsequentMode = subsequentRequests.find(x => x?.mode === "concurrent" || x?.mode === "sequential")?.mode || c?.targetSubsequentMode || "sequential";
+			$("targetSubsequentMode").value = importedSubsequentMode;
+			subsequentRequests.forEach(x => addTargetSubsequentRequest({...x, mode: x?.mode || importedSubsequentMode}));
+			$("raceConditions").innerHTML = "";
+			(c?.raceConditions || []).forEach(x => addConditionRow($("raceConditions"), x));
+			$("enableGlobalStopCondition").checked = !!c?.globalStopConditionEnabled;
+			$("globalStopConditions").innerHTML = "";
+			(c?.globalStopConditions || []).forEach(x => addConditionRow($("globalStopConditions"), x));
+			$("assertions").innerHTML = "";
+			(c?.assertions || []).forEach(addAssertion);
+			$("beforeSnapshots").innerHTML = "";
+			const bs = c?.beforeSnapshots || ((c?.beforeUrl || "") ? [{url:c.beforeUrl, method:c.beforeMethod, body:c.beforeBody, expected:c.beforeExpected, delay:c.beforeDelay, headers:c.beforeHeaders}] : []);
+			bs.forEach(addBeforeSnapshot);
+			if(!bs.length) addBeforeSnapshot();
+			$("afterSnapshots").innerHTML = "";
+			const as = c?.afterSnapshots || ((c?.afterUrl || "") ? [{url:c.afterUrl, method:c.afterMethod, body:c.afterBody, expected:c.afterExpected, extract:c.afterExtract, delay:c.afterDelay, headers:c.afterHeaders}] : []);
+			as.forEach(addAfterSnapshot);
+			if(!as.length) addAfterSnapshot();
+		}
+
+		$("save").onclick = () => {
+			const name = ($("testName").value.trim() || "RaceLab experiment").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").replace(/\s+/g, " ").replace(/[. ]+$/g, "");
+			const a = document.createElement("a");
+			a.href = URL.createObjectURL(new Blob([JSON.stringify(experiment(), null, 2)], {
+				type: "application/json"
+			}));
+			a.download = (name || "RaceLab experiment") + ".json";
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+		};
+		$("load").onclick = () => $("file").click();
+		$("file").onchange = async e => {
+			try {
+				const d = JSON.parse(await e.target.files[0].text()),
+					c = d.config || d;
+				Object.entries(c).forEach(([k, v]) => {
+					const el = $(k);
+					if(el) {
+						if(el.type === "checkbox") el.checked = !!v;
+						else if(k !== "assertions" && k !== "globalVariables" && k !== "beforeSnapshots" && k !== "afterSnapshots") el.value = v
+					}
+				});
+				S.globalVars = Array.isArray(c.globalVariables) ? c.globalVariables : [];
+				$("globalVars").innerHTML = "";
+				S.globalVars.forEach(addGlobalVar);
+				$("targetConditions").innerHTML = "";
+				(c.targetConditions || []).forEach(x => addConditionRow($("targetConditions"), x));
+				document.querySelector(".targetExtractors").innerHTML = "";
+				(c.targetExtractors || []).forEach((x, j) => addTargetExtractor(x, x.name || `value${j+1}`));
+				$("targetSubsequentRequests").innerHTML = "";
+				const subsequentRequests = c.targetSubsequentRequests || [];
+				const importedSubsequentMode = subsequentRequests.find(x => x?.mode === "concurrent" || x?.mode === "sequential")?.mode || c.targetSubsequentMode || "sequential";
+				$("targetSubsequentMode").value = importedSubsequentMode;
+				subsequentRequests.forEach(x => addTargetSubsequentRequest({...x, mode: x?.mode || importedSubsequentMode}));
+				$("raceConditions").innerHTML = "";
+				(c.raceConditions || []).forEach(x => addConditionRow($("raceConditions"), x));
+				$("enableGlobalStopCondition").checked = !!c.globalStopConditionEnabled;
+				$("globalStopConditions").innerHTML = "";
+				(c.globalStopConditions || []).forEach(x => addConditionRow($("globalStopConditions"), x));
+				$("assertions").innerHTML = "";
+				(c.assertions || []).forEach(addAssertion);
+				$("beforeSnapshots").innerHTML = "";
+				const bs = c.beforeSnapshots || ((c.beforeUrl || "") ? [{
+					url: c.beforeUrl,
+					method: c.beforeMethod,
+					body: c.beforeBody,
+					expected: c.beforeExpected,
+					delay: c.beforeDelay,
+					headers: c.beforeHeaders
+				}] : []);
+				bs.forEach(addBeforeSnapshot);
+				if(!bs.length) addBeforeSnapshot();
+				$("afterSnapshots").innerHTML = "";
+				const as = c.afterSnapshots || ((c.afterUrl || "") ? [{
+					url: c.afterUrl,
+					method: c.afterMethod,
+					body: c.afterBody,
+					expected: c.afterExpected,
+					extract: c.afterExtract,
+					delay: c.afterDelay,
+					headers: c.afterHeaders
+				}] : []);
+				as.forEach(addAfterSnapshot);
+				if(!as.length) addAfterSnapshot()
+			} catch(x) {
+				alert(x.message)
+			}
+			e.target.value = ""
+		};
+		document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+			document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+			t.classList.add("active");
+			document.querySelectorAll(".view").forEach(x => x.classList.add("hidden"));
+			$(t.dataset.view).classList.remove("hidden")
+		});
+
+		document.querySelectorAll(".payloadCopy").forEach(b => b.onclick = async() => {
+			const payload = b.dataset.payload || "";
+			try {
+				await navigator.clipboard.writeText(payload);
+				const oldText = b.textContent;
+				b.textContent = "Copied ✓";
+				setTimeout(() => b.textContent = oldText, 1000)
+			} catch(e) {
+				const ta = document.createElement("textarea");
+				ta.value = payload;
+				document.body.appendChild(ta);
+				ta.select();
+				document.execCommand("copy");
+				ta.remove();
+			}
+		});
+		document.querySelectorAll(".payloadAttach").forEach(b => b.onclick = () => {
+			const payload = b.dataset.payload || "";
+			$("body").value = payload;
+			const tab = document.querySelector('.tab[data-view="experiment"]');
+			if(tab) tab.click();
+			$("body").focus();
+		});
+
+		function nums(id) {
+			return $(id).value.split(",").map(Number).filter(Number.isFinite).filter(x => x >= 0)
+		}
+
+		function sweepDims() {
+			const d = [];
+			if($("sweepConcurrencyOn").checked) d.push(["concurrency", nums("sweepConcurrencyValues")]);
+			if($("sweepSpreadOn").checked) d.push(["spread", nums("sweepSpreadValues")]);
+			if($("sweepDelayOn").checked) d.push(["delay", nums("sweepDelayValues")]);
+			if($("sweepCountOn").checked) d.push(["count", nums("sweepCountValues")]);
+			return d
+		}
+
+		function product(d) {
+			let a = [{}];
+			for(const [k, v] of d) {
+				const n = [];
+				for(const x of a)
+					for(const z of v) n.push({...x, [k]: z
+					});
+				a = n
+			}
+			return a
+		}
+
+		function sweepClass(r) {
+			return r >= 80 ? "sweep-bad" : r >= 20 ? "sweep-mid" : "sweep-good"
+		}
+		// ============================================================
+		// 17. SWEEP HEATMAP
+		// ============================================================
+		function renderHeat(rows) {
+			const d = sweepDims(),
+				box = $("sweepHeatmap");
+			if(d.length !== 2) {
+				box.innerHTML = '<div class="notice">Enable exactly two parameters for the heatmap.</div>';
+				return
+			}
+			const X = d[1],
+				Y = d[0],
+				m = new Map(rows.map(r => [r[Y[0]] + "|" + r[X[0]], r]));
+			let h = '<table class="heatgrid"><thead><tr><th>' + X[0] + ' \\\\ ' + Y[0] + '</th>' + X[1].map(v => `<th>${v}</th>`).join("") + '</tr></thead><tbody>';
+			for(const y of Y[1]) {
+				h += `<tr><th>${y}</th>`;
+				for(const x of X[1]) {
+					const r = m.get(y + "|" + x);
+					h += r ? `<td class="heatcell ${sweepClass(r.rate)}">${r.rate.toFixed(0)}%</td>` : "<td>—</td>"
+				}
+				h += "</tr>"
+			}
+			box.innerHTML = h + "</tbody></table>"
+		}
+
+		function chartSetup(id) {
+			const c = $(id),
+				r = c.getBoundingClientRect(),
+				d = devicePixelRatio || 1;
+			c.width = Math.max(1, r.width * d);
+			c.height = Math.max(1, r.height * d);
+			const x = c.getContext("2d");
+			x.setTransform(d, 0, 0, d, 0, 0);
+			return [x, r.width, r.height]
+		}
+
+		function sweepChart(id, empty, rows, key, title) {
+			const e = $(empty);
+			e.classList.toggle("hidden", rows.length > 0);
+			if(!rows.length) return;
+			const [c, w, h] = chartSetup(id), p = {
+				l: 42,
+				r: 10,
+				t: 16,
+				b: 30
+			}, iw = w - p.l - p.r, ih = h - p.t - p.b, max = Math.max(1, ...rows.map(r => r[key]));
+			c.clearRect(0, 0, w, h);
+			c.strokeStyle = "#27313d";
+			c.strokeRect(p.l, p.t, iw, ih);
+			c.fillStyle = "#8995a4";
+			c.font = "10px system-ui";
+			c.fillText(title, 8, 11);
+			c.strokeStyle = "#58a6ff";
+			c.beginPath();
+			rows.forEach((r, i) => {
+				const x = p.l + (rows.length === 1 ? iw / 2 : i * iw / (rows.length - 1)),
+					y = h - p.b - r[key] / max * ih;
+				i ? c.lineTo(x, y) : c.moveTo(x, y)
+			});
+			c.stroke();
+			rows.forEach((r, i) => {
+				const x = p.l + (rows.length === 1 ? iw / 2 : i * iw / (rows.length - 1)),
+					y = h - p.b - r[key] / max * ih;
+				c.fillStyle = r.rate >= 20 ? "#f85149" : "#58a6ff";
+				c.beginPath();
+				c.arc(x, y, 3, 0, 7);
+				c.fill()
+			})
+		}
+		// ============================================================
+		// 18. SWEEP CHARTS
+		// ============================================================
+		function renderSweepCharts(rows) {
+			const a = [...rows].sort((x, y) => x.order - y.order);
+			sweepChart("sweepRateChart", "sweepRateEmpty", a, "rate", "Anomaly rate");
+			sweepChart("sweepLatencyChart", "sweepLatencyEmpty", a, "p95", "P95 latency")
+		}
+
+		function renderSweepTable(rows) {
+			$("sweepRows").innerHTML = rows.map((r, i) => `<tr><td>${i+1}</td><td>${r.concurrency}</td><td>${r.spread}</td><td>${r.delay}</td><td>${r.count}</td><td>${r.rounds}</td><td>${r.anomalies}</td><td class="${r.rate>=20?"warn":"ok"}">${r.rate.toFixed(1)}%</td><td>${r.p50.toFixed(1)} ms</td><td>${r.p95.toFixed(1)} ms</td><td>${r.max.toFixed(1)} ms</td><td>${r.rate>=80?"HIGH":r.rate>=20?"WATCH":"CLEAR"}</td></tr>`).join("")
+		}
+
+		function renderSweepSummary(rows) {
+			if(!rows.length) return;
+			$("sweepSummary").textContent = `Configurations tested: ${rows.length}\nPeak anomaly rate: ${Math.max(...rows.map(r=>r.rate)).toFixed(1)}%\nConfidence threshold: ${$("sweepConfidence").value}%\nAdaptive refinement: ${$("adaptiveSweep").checked?"enabled":"disabled"}`
+		}
+		// ============================================================
+		// 16. SWEEP ENGINE & ANALYSIS
+		// ============================================================
+		async function runSweep() {
+			if(S.running) return;
+			const d = sweepDims();
+			if(!d.length) {
+				alert("Enable at least one sweep parameter.");
+				return
+			}
+			const c = config(),
+				cfgs = product(d),
+				rows = [];
+			S.running = true;
+			$("sweepRun").disabled = true;
+			$("sweepStop").disabled = false;
+			try {
+				for(let i = 0; i < cfgs.length && S.running; i++) {
+					const v = cfgs[i],
+						cc = {...c, concurrency: clamp(v.concurrency ?? c.concurrency, 1, 100), spread: v.spread ?? c.spread, delay : v.delay ?? c.delay, count : clamp(v.count ?? c.count, 1, 500)
+						};
+					let an = 0,
+						l = [];
+					for(let r = 1; r <= +$("sweepRounds").value && S.running; r++) {
+						const q = await race(cc, r),
+							ss = q.filter(ok);
+						if(ss.length > cc.maxSuccess) an++;
+						l.push(...q.map(x => x.duration).filter(Number.isFinite));
+						if($("stopAt100").checked && an === r) break
+					}
+					rows.push({
+						order: i,
+						concurrency: cc.concurrency,
+						spread: cc.spread,
+						delay: cc.delay,
+						count: cc.count,
+						rounds: Math.max(1, Math.min(+$("sweepRounds").value || 1, rows.length + 1)),
+						anomalies: an,
+						rate: an / (+$("sweepRounds").value || 1) * 100,
+						p50: percentile(l, .5),
+						p95: percentile(l, .95),
+						max: Math.max(0, ...l)
+					});
+					renderSweepTable(rows);
+					renderHeat(rows);
+					renderSweepCharts(rows);
+					renderSweepSummary(rows);
+					$("sweepProgress").style.width = ((i + 1) / cfgs.length * 100) + "%"
+				}
+			} finally {
+				S.running = false;
+				$("sweepRun").disabled = false;
+				$("sweepStop").disabled = true
+			}
+		}
+		$("sweepRun").onclick = runSweep;
+		$("sweepStop").onclick = stop;
+		$("sweepClear").onclick = () => {
+			$("sweepRows").innerHTML = "";
+			$("sweepSummary").textContent = "No sweep analysis.";
+			$("sweepHeatmap").innerHTML = '<div class="notice">Run a two-parameter sweep to populate the heatmap.</div>';
+			renderSweepCharts([])
+		};
+		$("sweepPreset").onchange = () => {
+			const p = $("sweepPreset").value,
+				P = {
+					quick: ["1,5,10,20", "0,5,10", 3],
+					balanced: ["1,2,5,10,20,50", "0,1,5,10,25", 5],
+					aggressive: ["5,10,20,50,100", "0,1,2,5,10", 10],
+					timing: ["10,20,50", "0,1,2,5,10,25,50", 8],
+					threshold: ["1,2,5,10,20,50,100", "0", 5],
+					regression: ["10,20,50", "0,5,10", 10]
+				}[p];
+			if(!P) return;
+			$("sweepConcurrencyValues").value = P[0];
+			$("sweepSpreadValues").value = P[1];
+			$("sweepRounds").value = P[2];
+			$("sweepConcurrencyOn").checked = true;
+			$("sweepSpreadOn").checked = true;
+			$("sweepDelayOn").checked = false;
+			$("sweepCountOn").checked = false;
+			if(p === "threshold") $("sweepSpreadOn").checked = false;
+			if(p === "timing") $("sweepConcurrencyOn").checked = false
+		};
+		async function loadComparisonFile(inputId, textareaId, nameId) {
+			const f = $(inputId).files[0];
+			if(!f) return;
+			try {
+				const text = await f.text();
+				const d = JSON.parse(text);
+				if(!d || typeof d !== "object") throw new Error("Invalid JSON object.");
+				if(!d.analysis) throw new Error("This file does not contain RaceLab analysis results.");
+				$(textareaId).value = text;
+				$(nameId).textContent = f.name
+			} catch(e) {
+				alert("Could not load comparison file: " + e.message)
+			} finally {
+				$(inputId).value = ""
+			}
+		}
+		$("chooseRunA").onclick = () => $("runAFile").click();
+		$("chooseRunB").onclick = () => $("runBFile").click();
+		$("runAFile").onchange = () => loadComparisonFile("runAFile", "runA", "runAName");
+		$("runBFile").onchange = () => loadComparisonFile("runBFile", "runB", "runBName");
+		$("compare").onclick = () => {
+			try {
+				const a = JSON.parse($("runA").value).analysis,
+					b = JSON.parse($("runB").value).analysis,
+					keys = ["baseSuccess", "raceSuccess", "anomalyCount", "uniqueResponses", "duplicateValues", "maxSkew", "p95", "repro", "confidence"];
+				$("comparisonOut").textContent = keys.map(k => `${k.padEnd(20)} ${String(a?.[k]??"—").padEnd(12)} → ${b?.[k]??"—"}`).join("\n")
+			} catch(e) {
+				$("comparisonOut").textContent = "Comparison error: " + e.message
+			}
+		};
+		addAssertion();
+		initFromQuery();
+		render();
+	})();
+	// ============================================================
+	// END RACELAB APPLICATION LOGIC
+	// ============================================================
+	(function() {
+		function initStateVerificationFullscreen() {
+			const btn = document.getElementById("stateVerificationFullscreen");
+			if(!btn || btn.dataset.fsReady) return;
+			btn.dataset.fsReady = "1";
+			const section = btn.closest(".card");
+			if(!section) return;
+			const setState = active => {
+				section.classList.toggle("stateVerificationFullscreen", active);
+				btn.textContent = active ? "⛶ Exit fullscreen" : "⛶ Fullscreen";
+				btn.title = active ? "Exit fullscreen" : "Fullscreen";
+				document.body.classList.toggle("stateVerificationFsActive", active);
+				if(!active) document.body.style.overflow = "";
+				else document.body.style.overflow = "hidden";
+			};
+			btn.addEventListener("click", async() => {
+				const active = section.classList.contains("stateVerificationFullscreen");
+				if(active) {
+					if(document.fullscreenElement === section) {
+						try {
+							await document.exitFullscreen()
+						} catch(e) {}
+					}
+					setState(false);
+					return;
+				}
+				// Prefer the native browser fullscreen API. If unavailable (or blocked),
+				// use the CSS fallback, which also works inside desktop WebViews.
+				if(section.requestFullscreen) {
+					try {
+						await section.requestFullscreen();
+						setState(true);
+						return;
+					} catch(e) {}
+				}
+				setState(true);
+			});
+			document.addEventListener("fullscreenchange", () => {
+				if(document.fullscreenElement === section) {
+					setState(true);
+				} else if(!section.classList.contains("stateVerificationFullscreen")) {
+					setState(false);
+				}
+			});
+			document.addEventListener("keydown", e => {
+				if(e.key === "Escape" && section.classList.contains("stateVerificationFullscreen") && document.fullscreenElement !== section) {
+					setState(false);
+				}
+			});
+		}
+		if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", initStateVerificationFullscreen);
+		else initStateVerificationFullscreen();
+	})();;
+	</script>
+</body>
+
+</html>
